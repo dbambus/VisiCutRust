@@ -30,12 +30,53 @@ fn word(out: &mut Vec<u8>, value: u16) {
 fn dword(out: &mut Vec<u8>, value: u32) {
     out.extend(value.to_be_bytes());
 }
-fn pair(out: &mut Vec<u8>, x: i32, y: i32) {
+// Rotary engraving: steps per full turn, an approximation in LibLaserCut.
+const ROTARY_STEPS_PER_REVOLUTION: f64 = 6400.0;
+
+/// Device Y axis of a job. XY jobs count from the bottom edge of the bed;
+/// rotary jobs use the cylinder rotation, counted from the top, unmirrored.
+#[derive(Clone, Copy)]
+struct Axis {
+    rotary_radius_mm: Option<f64>,
+}
+
+impl Axis {
+    fn of(project: &Project) -> Self {
+        Self {
+            rotary_radius_mm: project
+                .rotary_axis
+                .then_some(project.rotary_diameter_mm as f64 / 2.0),
+        }
+    }
+    fn rotary(radius_mm: f64, mm: f64) -> i32 {
+        (mm / (radius_mm * 2.0 * std::f64::consts::PI) * ROTARY_STEPS_PER_REVOLUTION).round() as i32
+    }
+    /// Absolute position of a 500-DPI raster row.
+    fn absolute(self, y: i32) -> i32 {
+        match self.rotary_radius_mm {
+            Some(r) => Self::rotary(r, y as f64 * 25.4 / RASTER_DPI),
+            None => (BED_HEIGHT * MACHINE_DPI / 25.4) as i32 - y * 8,
+        }
+    }
+    /// Relative move by `dy` 500-DPI rows.
+    fn relative(self, dy: i32) -> i32 {
+        match self.rotary_radius_mm {
+            Some(r) => Self::rotary(r, dy as f64 * 25.4 / RASTER_DPI),
+            None => -dy * 8,
+        }
+    }
+    /// Unmirrored bounding-box coordinate in mm.
+    fn bounding(self, mm: f64) -> u32 {
+        match self.rotary_radius_mm {
+            Some(r) => Self::rotary(r, mm) as u32,
+            None => raw(mm),
+        }
+    }
+}
+
+fn pair(out: &mut Vec<u8>, axis: Axis, x: i32, y: i32) {
     dword(out, (x * 8) as u32);
-    dword(
-        out,
-        ((BED_HEIGHT * MACHINE_DPI / 25.4) as i32 - y * 8) as u32,
-    );
+    dword(out, axis.absolute(y) as u32);
 }
 
 #[derive(serde::Serialize)]
@@ -63,6 +104,8 @@ pub struct PreparedJob {
     pub preview_png: Vec<u8>,
     pub steps: Vec<PreparedStep>,
     pub timeline: Timeline,
+    /// Instructions the operator must follow at the machine.
+    pub warnings: Vec<String>,
 }
 
 fn effective_speed(speed: f32) -> f64 {
@@ -83,6 +126,15 @@ pub fn prepare(project: &Project) -> Result<PreparedJob, String> {
         || (project.bed_height_mm - BED_HEIGHT as f32).abs() > 0.01
     {
         return Err("Das FAU-LTT-Profil benötigt ein Arbeitsbett von 1000 × 600 mm".into());
+    }
+    if project.rotary_axis
+        && project.height_mm > std::f32::consts::PI * project.rotary_diameter_mm + 0.001
+    {
+        return Err(format!(
+            "Motiv ist höher als der Umfang des Werkstücks ({:.1} mm bei {:.1} mm Durchmesser)",
+            std::f32::consts::PI * project.rotary_diameter_mm,
+            project.rotary_diameter_mm
+        ));
     }
     let mut parts = Vec::new();
     if project.steps.is_empty() {
@@ -117,6 +169,18 @@ pub fn prepare(project: &Project) -> Result<PreparedJob, String> {
     .ok_or("Vorschau konnte nicht erstellt werden")?;
     let mut steps = Vec::new();
     let mut timeline = Timeline::default();
+    let mut warnings = Vec::new();
+    if project.rotary_axis {
+        let overscan = parts.iter().map(overscan).fold(0.0, f32::max);
+        let left = project.width_mm / 2.0 + overscan.min(project.x_mm);
+        let right = project.width_mm / 2.0
+            + overscan.min(BED_WIDTH as f32 - project.x_mm - project.width_mm);
+        warnings.push(format!(
+            "Drehachse aktiv: Am Gerät mit „Adjust rotary temp“ die Mitte der Gravur einstellen. \
+             Der Laserkopf muss {left:.0} mm nach links und {right:.0} mm nach rechts \
+             kollisionsfrei fahren können (inklusive Bremsweg)."
+        ));
+    }
     for part in &parts {
         let name = device_job_name(part.operation, &project.name);
         let mut out = header(part, overscan(part), &name);
@@ -143,6 +207,7 @@ pub fn prepare(project: &Project) -> Result<PreparedJob, String> {
         preview_png: preview.encode_png().map_err(|e| e.to_string())?,
         steps,
         timeline,
+        warnings,
     })
 }
 
@@ -182,6 +247,7 @@ fn append_part(
     }
     let speed = project.speed_percent;
     let overscan = overscan(project);
+    let axis = Axis::of(project);
     let description;
     let mut program = Program::new(project.operation);
     match project.operation {
@@ -225,7 +291,7 @@ fn append_part(
                         program.travel(mm_point(current));
                     }
                     out.extend(b"PA");
-                    pair(out, current[0], current[1]);
+                    pair(out, axis, current[0], current[1]);
                     out.extend(b"PD");
                     for point in path.iter().skip(1) {
                         let next = [px(point[0] as f64), px(point[1] as f64)];
@@ -245,7 +311,7 @@ fn append_part(
                         }
                         out.extend(b"PR");
                         out.extend(((next[0] - current[0]) * 8).to_be_bytes());
-                        out.extend((-(next[1] - current[1]) * 8).to_be_bytes());
+                        out.extend(axis.relative(next[1] - current[1]).to_be_bytes());
                         current = next;
                     }
                     out.extend(b"PU");
@@ -369,8 +435,14 @@ fn header(project: &Project, overscan: f32, name: &str) -> Vec<u8> {
     // Prefix is part of the actual controller name, within its 15-byte limit.
     out.push(name.len() as u8);
     out.extend(name.as_bytes());
-    out.extend([0x1b, 0x61, 0]); // temporary reference point off
-    out.extend([0x1b, 0x4d, 0]); // XY, one bit per raster pixel
+    let axis = Axis::of(project);
+    if project.rotary_axis {
+        out.extend([0x1b, 0x61, 0x15]); // temporary reference point: centre, stay
+        out.extend([0x1b, 0x4d, 0x10]); // rotary axis, one bit per raster pixel
+    } else {
+        out.extend([0x1b, 0x61, 0]); // temporary reference point off
+        out.extend([0x1b, 0x4d, 0]); // XY, one bit per raster pixel
+    }
     out.extend([0x1b, 0x6c]);
     for margin in [0.0, overscan] {
         let xmin = (project.x_mm - margin).max(0.0) as f64;
@@ -378,16 +450,22 @@ fn header(project: &Project, overscan: f32, name: &str) -> Vec<u8> {
         let ymin = project.y_mm as f64;
         let ymax = (project.y_mm + project.height_mm) as f64;
         dword(&mut out, raw(xmin));
-        dword(&mut out, raw(ymin));
+        dword(&mut out, axis.bounding(ymin));
         dword(&mut out, raw(xmax) - raw(xmin));
-        dword(&mut out, raw(ymax) - raw(ymin));
+        dword(&mut out, axis.bounding(ymax) - axis.bounding(ymin));
     }
     out.extend([0x1b, 0x6e, 0, 0, 0x5d, 0xcf, 0, 0, 0x69, 0x56]);
     out.extend([0x1b, 0x4f, 0]); // no autorun
     out.extend([0x1b, 0x51, 0, 0]);
     out.extend([0x1b, 0x44, 8]); // 4000 / 8 = 500 DPI
+    // Material radius in 0.01 mm; LibLaserCut sends 42 mm for XY jobs.
     out.extend([0x1b, 0x52]);
-    word(&mut out, 4200);
+    let radius = if project.rotary_axis {
+        project.rotary_diameter_mm / 2.0
+    } else {
+        42.0
+    };
+    word(&mut out, (radius as f64 / 0.01) as u16);
     out.extend([0x1b, 0x43, 0xc0]);
     out.extend([0x1b, 0x54]);
     out.extend((0..=15).map(|i| i * 0x11));
@@ -441,6 +519,7 @@ fn raster_code(
     let origin_y = px(project.y_mm as f64);
     let max_x = px(BED_WIDTH);
     let overscan = px(overscan as f64);
+    let axis = Axis::of(project);
     let mut count = 0;
     let mut encoded = Vec::new();
     for y in 0..bitmap.height() {
@@ -487,7 +566,7 @@ fn raster_code(
         let compressed = compress(&padded);
         encoded.extend([0x1b, 0x30]); // unidirectional: every line left to right
         dword(&mut encoded, compressed.len() as u32 + 8);
-        pair(&mut encoded, start_x, origin_y + y as i32);
+        pair(&mut encoded, axis, start_x, origin_y + y as i32);
         encoded.extend(compressed);
         count += 1;
     }
@@ -876,7 +955,14 @@ mod tests {
     #[test]
     fn coordinates_match_java_driver_conversion() {
         let mut bytes = Vec::new();
-        pair(&mut bytes, 196, 393);
+        pair(
+            &mut bytes,
+            Axis {
+                rotary_radius_mm: None,
+            },
+            196,
+            393,
+        );
         // Java casts bedHeight*4000/25.4 to int, scales 500-DPI coordinates by eight.
         assert_eq!(bytes, [0, 0, 6, 32, 0, 1, 100, 208]);
     }
@@ -915,6 +1001,51 @@ mod tests {
         let prepared = prepare(&p).unwrap();
         assert!(prepared.jobs[0].bytes.windows(2).any(|b| b == [0x1b, 0x30]));
         assert!(prepared.description.contains("Gravurzeilen"));
+    }
+    #[test]
+    fn rotary_axis_uses_rotation_steps_centre_reference_and_radius() {
+        fn has(bytes: &[u8], pattern: &[u8]) -> bool {
+            bytes.windows(pattern.len()).any(|b| b == pattern)
+        }
+        let xy = prepare(&sample()).unwrap();
+        assert!(has(&xy.jobs[0].bytes, &[0x1b, 0x61, 0, 0x1b, 0x4d, 0]));
+        assert!(has(&xy.jobs[0].bytes, &[0x1b, 0x52, 0x10, 0x68]));
+        assert!(xy.warnings.is_empty());
+
+        let p = Project {
+            rotary_axis: true,
+            rotary_diameter_mm: 100.0,
+            ..sample()
+        };
+        let rotary = prepare(&p).unwrap();
+        let bytes = &rotary.jobs[0].bytes;
+        assert!(has(bytes, &[0x1b, 0x61, 0x15, 0x1b, 0x4d, 0x10]));
+        // Radius 50 mm in 0.01 mm.
+        assert!(has(bytes, &[0x1b, 0x52, 0x13, 0x88]));
+        // Bounding box y = 10 mm and height 60 mm on a 314.16 mm circumference.
+        let mut bbox = vec![0x1b, 0x6c];
+        dword(&mut bbox, raw(10.0));
+        dword(&mut bbox, 204);
+        dword(&mut bbox, raw(110.0) - raw(10.0));
+        dword(&mut bbox, 1426 - 204);
+        assert!(has(bytes, &bbox));
+        let mut absolute = Vec::new();
+        pair(&mut absolute, Axis::of(&p), 100, 500);
+        assert_eq!(absolute[4..], 517i32.to_be_bytes()); // 25.4 mm
+        assert_eq!(Axis::of(&p).relative(-10), -10);
+        assert!(rotary.warnings[0].contains("Adjust rotary temp"));
+        assert_framing(bytes);
+
+        let too_small = Project {
+            rotary_diameter_mm: 10.0,
+            ..p.clone()
+        };
+        assert!(prepare(&too_small).err().unwrap().contains("Umfang"));
+        let invalid = Project {
+            rotary_diameter_mm: 4.0,
+            ..p
+        };
+        assert!(prepare(&invalid).err().unwrap().contains("Durchmesser"));
     }
     #[test]
     fn tcp_transfer_delivers_exact_bytes() {

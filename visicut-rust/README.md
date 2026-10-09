@@ -134,7 +134,7 @@ für Schnitt und der Faktor 6,4 für Gravur. Beschleunigung, Geräteeinstellunge
 ist noch nicht am Gerät kalibriert. Die Simulation ist eine Vorschau ohne
 Geräteverbindung und keine Live-Anzeige eines laufenden Lasers.
 
-Hostname ist `lasercutter2`, Port `9100`. Der Mac muss den Namen im
+Standard-Hostname ist `lasercutter2`, Port `9100`. Der Mac muss den Namen im
 FabLab-Netz auflösen können; alternativ eine vom FabLab bestätigte IP
 eintragen. Die Übertragung erfordert eine ausdrückliche Bestätigung in
 der App und startet den Laser nicht automatisch.
@@ -150,7 +150,43 @@ Entwürfe können auch ohne Motiv oder mit einer noch unpassenden Position
 gesichert werden; das Senden prüft strengere Bedingungen.
 Bestehende `.plf`-Dateien lassen sich noch nicht öffnen.
 
-Netzwerkparameter stehen unter **VisiCut → Einstellungen …** (⌘,).
+## Lasercutter, Drehachse und Kamera
+
+**VisiCutRust → Lasercutter …** (⌘,) verwaltet mehrere LTT iLaser 4000:
+Name, Hostname, Port, Drehachse, Kamera-URL, Kamerakalibrierung und den
+Hinweis nach dem Senden. Andere Lasercutter-Typen werden nicht unterstützt.
+Beim ersten Start ist das FAU-Gerät aus den VisiCut-Einstellungen eingerichtet.
+Die Auswahl im Inspektor bestimmt Ziel und verfügbare Funktionen.
+
+- **Importieren** liest VisiCut-Gerätedateien (`devices/*.xml`),
+  `.vcsettings`-Archive und eigene Exporte (`.vcrdevices`). **Herunterladen**
+  lädt die Labor-Einstellungen aus VisiCuts Liste und übernimmt nur
+  LTT-iLaser-4000-Geräte. **Exportieren** schreibt alle Geräte als JSON.
+- Die Geräteliste liegt unter `~/Library/Application Support/VisiCutRust`
+  (Windows `%APPDATA%\VisiCutRust`, Linux `~/.config/visicut-rust`);
+  `VISICUT_RUST_CONFIG_DIR` setzt einen anderen Ordner.
+- **Drehachse**: Bei Geräten mit Drehachse lässt sie sich je Projekt mit
+  Werkstückdurchmesser einschalten (siehe [PROTOCOL.md](PROTOCOL.md)).
+- **Autofokus, Druckluft, Absaugung** steuert der LTT-Treiber nicht – auch
+  nicht im Java-Original. Der Gerätehinweis erinnert nach dem Senden daran.
+- **Kamera** (⌘K): Das Foto der Kamera-URL wird über die Homographie der
+  Kalibrierung entzerrt und unter das Arbeitsbett gelegt (⇧⌘K aktualisiert).
+  Das FAU-Kamerabild ist nur im FAU-Netz erreichbar.
+- **Kalibrieren**: Im Kalibrierdialog die Kalibrierseite als Projekt öffnen
+  und auf Restmaterial markieren (je Marker ein 10-mm-Kreuz mit
+  Zählstrichen wie in VisiCut). Danach ein Foto aufnehmen, die nummerierten
+  Marker auf die Kreuze ziehen und übernehmen. Mindestens vier Punkte, nicht
+  auf einer Linie.
+- **Kameraserver**: `visicut-cameraserver` ersetzt `tools/cameraserver` und
+  beantwortet jede HTTP-Anfrage mit einem frischen Foto eines
+  Aufnahmebefehls, z. B.
+  `visicut-cameraserver -- gphoto2 --capture-image-and-download --stdout` oder
+  `visicut-cameraserver --output snap.jpg -- imagesnap -q snap.jpg`
+  (`--port`, `--rotate 90`). Er liegt in `VisiCutRust.app/Contents/MacOS`
+  bzw. neben der Windows-/Linux-Programmdatei.
+
+Windows und Linux bieten Geräteauswahl, -verwaltung, Drehachse, Kamerabild
+und Kalibrierung in der egui-Oberfläche.
 Die native Menüleiste bietet Ablage, Bearbeiten, Darstellung und Job.
 Die Oberfläche verwendet Systemschrift, Systemfarben, native Werkzeugleiste,
 Systemdialoge und automatische Hell-/Dunkel-Darstellung.
@@ -179,7 +215,7 @@ und die automatische Ungültigkeit alter Vorschauen. Abschließend öffnet er
 die Auftragsvorschau über die reguläre asynchrone Vorbereitung. Der Test
 bewegt den echten nativen Slider vorwärts/rückwärts und prüft Interpolation,
 Durchgangswechsel, Ende der Wiedergabe sowie drei getrennte Aufträge.
-Rust-Tests prüfen drei unabhängige TCP-Verbindungen ausschließlich lokal. Er sendet keinen
+Außerdem prüft er Geräteliste und Gerätewechsel in einem temporären Einstellungsordner, Drehachsen-Aufträge, Kamerahintergrund aus einer lokalen Bilddatei und die Kalibrierseite. Rust-Tests prüfen drei unabhängige TCP-Verbindungen ausschließlich lokal. Er sendet keinen
 Job an den Lasercutter. Der normale Start enthält keinen Selbsttest.
 
 Die Materialdaten sind in `resources/materials.json` eingebettet.

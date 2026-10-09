@@ -1,3 +1,5 @@
+mod devices_ui;
+
 use eframe::egui::{self, Color32, Pos2, Rect, Sense, Stroke, Vec2};
 use std::path::{Path, PathBuf};
 use visicut_core::{
@@ -15,7 +17,8 @@ struct VisiCutRust {
     proportional: bool,
     confirm_close: bool,
     allow_close: bool,
-    send_result: Option<std::sync::mpsc::Receiver<Result<(), String>>>,
+    send_result: Option<std::sync::mpsc::Receiver<Result<Vec<String>, String>>>,
+    devices: devices_ui::DeviceUi,
     #[cfg(feature = "screenshot")]
     capture: Option<(PathBuf, u32)>,
 }
@@ -23,6 +26,7 @@ struct VisiCutRust {
 impl VisiCutRust {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::light());
+        let (devices, device_error) = devices_ui::DeviceUi::load();
         let mut app = Self {
             project: Project::default(),
             texture: None,
@@ -33,9 +37,14 @@ impl VisiCutRust {
             confirm_close: false,
             allow_close: false,
             send_result: None,
+            devices,
             #[cfg(feature = "screenshot")]
             capture: None,
         };
+        app.devices.apply(&mut app.project);
+        if let Some(error) = device_error {
+            app.status = error;
+        }
         let arguments: Vec<String> = std::env::args().skip(1).collect();
         #[cfg(feature = "screenshot")]
         if let Some(index) = arguments
@@ -105,6 +114,7 @@ impl VisiCutRust {
             self.texture =
                 Some(ctx.load_texture("SVG", preview.image, egui::TextureOptions::LINEAR));
             self.project = project;
+            self.devices.apply(&mut self.project);
             self.project_path = Some(path.to_owned());
             self.dirty = false;
             self.status = "Projekt geöffnet".into();
@@ -198,9 +208,10 @@ impl VisiCutRust {
             .collect::<Vec<_>>()
             .join(", ");
         let approved = rfd::MessageDialog::new().set_title("LTT-Job übertragen")
-            .set_description(format!("{}\nZiel: {}:{}\n{}\nLeistung: {} % · Geschwindigkeit: {} %\n\nDer Job wird ohne Autostart übertragen. Vor dem Start am Gerät Fokus, Material und Druckluft prüfen.\n\nDieser Rust-Treiber ist noch nicht am echten Gerät validiert. Job jetzt übertragen?",
+            .set_description(format!("{}\nZiel: {}:{}\n{}\nLeistung: {} % · Geschwindigkeit: {} %\n\n{}Der Job wird ohne Autostart übertragen. Vor dem Start am Gerät Fokus, Material und Druckluft prüfen.\n\nDieser Rust-Treiber ist noch nicht am echten Gerät validiert. Job jetzt übertragen?",
                 self.project.name, self.project.hostname, self.project.port, names,
-                self.project.power_percent, self.project.speed_percent))
+                self.project.power_percent, self.project.speed_percent,
+                prepared.warnings.iter().map(|w| format!("{w}\n\n")).collect::<String>()))
             .set_buttons(rfd::MessageButtons::YesNo).show();
         if approved != rfd::MessageDialogResult::Yes {
             return Ok(());
@@ -209,7 +220,7 @@ impl VisiCutRust {
         let port = self.project.port;
         let (tx, rx) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(ltt::transmit_jobs(&host, port, &prepared.jobs).map(|_| ()));
+            let _ = tx.send(ltt::transmit_jobs(&host, port, &prepared.jobs));
         });
         self.send_result = Some(rx);
         self.status = "LTT-Job wird übertragen …".into();
@@ -340,16 +351,9 @@ impl VisiCutRust {
         }
         ui.add_space(10.0);
         ui.separator();
-        ui.label("LTT iLaser 4000 · Netzwerk");
-        self.dirty |= ui
-            .text_edit_singleline(&mut self.project.hostname)
-            .changed();
-        ui.horizontal(|ui| {
-            ui.label("Port");
-            self.dirty |= ui
-                .add(egui::DragValue::new(&mut self.project.port).range(1..=65535))
-                .changed();
-        });
+        self.devices
+            .sidebar(ui, &mut self.project, &mut self.dirty, &mut self.status);
+        ui.separator();
         if ui.button("LTT-Datei exportieren …").clicked()
             && let Err(e) = self.export_job()
         {
@@ -384,8 +388,13 @@ impl VisiCutRust {
         let bed = Rect::from_min_size(rect.min + Vec2::splat(12.0), size);
         let painter = ui.painter().with_clip_rect(bed);
         painter.rect_filled(bed, 0.0, Color32::WHITE);
+        let camera = self.devices.paint_camera(&painter, bed);
         // Coarsen the grid at small scales to bound the number of painted lines.
-        let step = (10.0 * scale).max(12.0);
+        let step = if camera {
+            f32::INFINITY
+        } else {
+            (10.0 * scale).max(12.0)
+        };
         let grid = Stroke::new(0.5, Color32::from_gray(228));
         let mut x = bed.left();
         while x <= bed.right() {
@@ -504,7 +513,23 @@ impl eframe::App for VisiCutRust {
             match receiver.try_recv() {
                 Ok(result) => {
                     self.status = match result {
-                        Ok(()) => "Bytes übertragen. Job am Gerät prüfen; Autofokus und Druckluft vor dem Start sicherstellen.".into(),
+                        Ok(names) => {
+                            let text = self
+                                .devices
+                                .device()
+                                .job_sent_text
+                                .replace("$jobname", &names.join(", "));
+                            if !text.trim().is_empty() {
+                                rfd::MessageDialog::new()
+                                    .set_title(format!(
+                                        "An {} übertragen",
+                                        self.devices.device().name
+                                    ))
+                                    .set_description(text)
+                                    .show();
+                            }
+                            "Bytes übertragen. Job am Gerät prüfen; Autofokus und Druckluft vor dem Start sicherstellen.".into()
+                        }
                         Err(e) => e,
                     };
                     self.send_result = None;
@@ -550,6 +575,29 @@ impl eframe::App for VisiCutRust {
                         }
                     });
                 });
+        }
+        if let Some(devices_ui::Action::CalibrationPage(points)) =
+            self.devices
+                .windows(ctx, &mut self.project, &mut self.status)
+        {
+            if self.dirty {
+                self.status = "Zuerst das aktuelle Projekt speichern".into();
+            } else {
+                let (w, h) = (self.project.bed_width_mm, self.project.bed_height_mm);
+                let svg = visicut_core::camera::calibration_svg(&points, w as f64, h as f64);
+                match self.import(ctx, svg, "Kalibrierung".into()) {
+                    Ok(()) => {
+                        self.project.steps.clear();
+                        self.project.rotary_axis = false;
+                        (self.project.x_mm, self.project.y_mm) = (0.0, 0.0);
+                        self.project.operation = Operation::Mark;
+                        self.project_path = None;
+                        self.status =
+                            "Kalibrierseite geöffnet: Markier-Parameter prüfen und senden".into();
+                    }
+                    Err(e) => self.status = e,
+                }
+            }
         }
         let open = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::O));
         let save = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::S));

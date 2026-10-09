@@ -43,6 +43,10 @@ def main():
         if not binary.is_file():
             parser.error("Build the portable application with cargo build --release first")
         shutil.copy2(binary, stage / f"visicut-rust{suffix}")
+        server = project / "target/release" / f"visicut-cameraserver{suffix}"
+        if not server.is_file():
+            parser.error("Build all binaries with cargo build --release --bins first")
+        shutil.copy2(server, stage / server.name)
         for source in [project / "README.md", project / "PROTOCOL.md",
                        project.parent / "COPYING", project.parent / "COPYING.LESSER"]:
             shutil.copy2(source, stage / source.name)
@@ -51,6 +55,8 @@ def main():
             f"Start visicut-rust{suffix}. No Java is required.\n"
             "The full native UI, object assignment controls, and timeline are macOS-only.\n"
             "This build shares the Rust SVG/LTT core and can load saved .vcr projects.\n"
+            "It manages LTT iLaser 4000 devices, rotary jobs, and the calibrated camera\n"
+            f"background. visicut-cameraserver{suffix} serves photos from a capture command.\n"
             "Linux requires a graphical X11/Wayland session, OpenGL/EGL, libxkbcommon,\n"
             "and a desktop portal for file dialogs. Built on Ubuntu 24.04 (glibc 2.39).\n"
             "See README.md and PROTOCOL.md for features and hardware validation status.\n",

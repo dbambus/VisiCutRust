@@ -55,14 +55,27 @@ Wiederholung nach Fehlern.
   Masken, Clipping und Filter werden beim Schneiden abgewiesen.
 - Rastergravur ist Schwarz/Weiß mit Luminanzschwelle 128, 500 DPI,
   links nach rechts. Overscan und Verschiebung werden berücksichtigt.
-  Graustufengravur, bidirektionale Gravur und Drehachse fehlen.
+  Graustufengravur und bidirektionale Gravur fehlen.
+- Drehachse wie im Java-Treiber: Job-Modus `ESC M 0x10`, temporärer
+  Referenzpunkt Mitte (`ESC a 0x15`), Materialradius in 0,01 mm
+  (`ESC R`), Y als Drehwinkel mit 6400 Schritten je Umdrehung, ungespiegelt.
+  Die 6400 Schritte sind im Java-Treiber als Schätzung markiert; der
+  Durchmesser muss 5–1000 mm betragen, das Motiv darf nicht höher als der
+  Umfang sein. Vor dem Start „Adjust rotary temp“ am Gerät; die App nennt den
+  nötigen Freiraum links und rechts. Am Gerät noch nicht validiert.
 - Externe SVG-Bilder werden nicht geladen; Bilder müssen eingebettet sein.
-- Autofokus, Druckluft und Absaugung werden wie im FAU-Profil nicht
-  vom Treiber gesteuert.
+- Autofokus, Druckluft und Absaugung: Der Java-Treiber enthält dafür nur
+  Platzhalter (`setFocus`, `setPurge`, `setVentilation` senden keine Bytes,
+  `isAutoFocus` ist nicht implementiert); das LTT-Protokoll dafür ist nicht
+  dokumentiert. Der Rust-Treiber sendet daher ebenfalls nichts. Stattdessen
+  zeigt die App nach dem Senden den Gerätehinweis (`jobSentText` aus den
+  VisiCut-Einstellungen, beim FAU-Gerät „Autofokus machen, Druckluft an“).
 - SVG und `.vcr` werden unterstützt. Version 0.2 ergänzt eine native
   AppKit-/SwiftUI-Oberfläche und eine Auswahl der FAU-LTT-Materialprofile.
   Bestehende VisiCut-PLF-Dateien, DXF/EPS, allgemeiner Materialbibliothek-
-  Import, Kamera und andere Gerätetreiber fehlen.
+  Import und andere Gerätetreiber fehlen. Nur der LTT iLaser 4000
+  (1000 × 600 mm, 4000 DPI) wird unterstützt; andere Geräte werden beim
+  Import abgewiesen.
 
 Dies ist ein ausführbarer Anfang der Portierung mit durchgehendem
 SVG→Rust→LTT-Workflow, keine vollständige Funktionsparität mit VisiCut.

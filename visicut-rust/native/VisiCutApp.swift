@@ -9,8 +9,9 @@ private func rustExecute(_ request: UnsafePointer<CChar>) -> UnsafeMutablePointe
 private func rustFree(_ response: UnsafeMutablePointer<CChar>)
 
 enum RustCore {
-    static func call(_ action: String, project: Project? = nil, path: String? = nil) throws -> Data {
-        var request: [String: Any] = ["action": action]
+    static func call(_ action: String, project: Project? = nil, path: String? = nil, values: [String: Any] = [:]) throws -> Data {
+        var request = values
+        request["action"] = action
         if let project {
             request["project"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(project))
         }
@@ -28,8 +29,12 @@ enum RustCore {
         return try JSONSerialization.data(withJSONObject: response["result"] ?? [:])
     }
 
-    static func decode<T: Decodable>(_ action: String, project: Project? = nil, path: String? = nil) throws -> T {
-        try JSONDecoder().decode(T.self, from: call(action, project: project, path: path))
+    static func decode<T: Decodable>(_ action: String, project: Project? = nil, path: String? = nil, values: [String: Any] = [:]) throws -> T {
+        try JSONDecoder().decode(T.self, from: call(action, project: project, path: path, values: values))
+    }
+
+    static func json<T: Encodable>(_ value: T) throws -> Any {
+        try JSONSerialization.jsonObject(with: JSONEncoder().encode(value), options: .fragmentsAllowed)
     }
 }
 
@@ -72,6 +77,8 @@ struct Project: Codable, Equatable {
     var hostname: String
     var port: Int
     var steps: [JobStep]
+    var rotary_axis: Bool
+    var rotary_diameter_mm: Double
 
     var hasArtwork: Bool { !svg.isEmpty }
     var fitsBed: Bool {
@@ -128,6 +135,7 @@ struct PreparedJob: Decodable {
     let preview_png: [UInt8]
     let steps: [PreparedStep]
     let timeline: LaserTimeline
+    let warnings: [String]
 }
 
 func duration(_ seconds: Double) -> String {
@@ -161,6 +169,11 @@ final class AppModel: ObservableObject {
     @Published var keepProportions = true
     @Published var zoom = 1.0
     @Published var showGrid = true
+    @Published var devices: DeviceStore
+    @Published var showCamera = false
+    @Published var cameraImage: NSImage?
+    @Published var cameraLoading = false
+    let labs: [LabSetting]
     let materials: [Material]
     var projectURL: URL?
     private var replacing = true
@@ -168,13 +181,18 @@ final class AppModel: ObservableObject {
     init() {
         do {
             let initial: ProjectResponse = try RustCore.decode("default")
+            let list: DeviceList = try RustCore.decode("devices")
+            devices = list.store
+            labs = list.labs
             project = initial.project
             let catalog: MaterialCatalog = try RustCore.decode("materials")
             materials = catalog.materials
             project.material = ""
+            error = list.error.map { "Geräteliste nicht lesbar, FAU-Standard wird verwendet: " + $0 }
         } catch {
             fatalError("Rust-Kern konnte nicht initialisiert werden: \(error)")
         }
+        applyDevice()
         replacing = false
         if CommandLine.arguments.contains("--demo") || CommandLine.arguments.contains("--ui-test") {
             demo()
@@ -236,6 +254,7 @@ final class AppModel: ObservableObject {
         replacing = true
         project = response.project
         if project.material == "Material wählen" { project.material = "" }
+        applyDevice()
         image = response.preview.flatMap { NSImage(data: Data($0.png)) }
         objects = response.objects ?? []
         replacing = false
@@ -454,7 +473,7 @@ final class AppModel: ObservableObject {
         let snapshot = project
         let alert = NSAlert()
         alert.messageText = "\(prepared.jobs.count) Auftrag/Aufträge an den Lasercutter senden?"
-        alert.informativeText = "\(prepared.jobs.map(\.name).joined(separator: " → "))\nJe Verfahren ein separater Auftrag.\nCa. \(duration(prepared.estimated_seconds))\n\(snapshot.hostname):\(snapshot.port)\n\nDie Übertragung startet den Laser nicht. Aufträge am Gerät in dieser Reihenfolge einzeln starten. Treiber am Gerät noch nicht validiert. Vor dem Start Material, Fokus und Druckluft prüfen."
+        alert.informativeText = "\(prepared.jobs.map(\.name).joined(separator: " → "))\nJe Verfahren ein separater Auftrag.\nCa. \(duration(prepared.estimated_seconds))\n\(device.name) · \(snapshot.hostname):\(snapshot.port)\n\n" + prepared.warnings.map { $0 + "\n\n" }.joined() + "Die Übertragung startet den Laser nicht. Aufträge am Gerät in dieser Reihenfolge einzeln starten. Treiber am Gerät noch nicht validiert. Vor dem Start Material, Fokus und Druckluft prüfen."
         alert.addButton(withTitle: "Senden")
         alert.addButton(withTitle: "Abbrechen")
         guard alert.runModal() == .alertFirstButtonReturn, snapshot == project else { return }
@@ -466,7 +485,9 @@ final class AppModel: ObservableObject {
             DispatchQueue.main.async {
                 self.busy = false
                 switch result {
-                case .success(let response): self.status = "Übertragen: " + response.sent.joined(separator: ", ") + ". Aufträge am Gerät prüfen und einzeln starten."
+                case .success(let response):
+                    self.status = "Übertragen: " + response.sent.joined(separator: ", ") + ". Aufträge am Gerät prüfen und einzeln starten."
+                    self.showJobSentText(response.sent)
                 case .failure(let error): self.error = error.localizedDescription; self.status = "Übertragung fehlgeschlagen. Gerätestatus prüfen."
                 }
             }
@@ -564,7 +585,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         let app = submenu("VisiCutRust")
         app.addItem(menuItem("Über VisiCutRust", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), target: NSApp))
         app.addItem(.separator())
-        app.addItem(menuItem("Einstellungen …", action: #selector(showSettings), key: ","))
+        app.addItem(menuItem("Lasercutter …", action: #selector(showSettings), key: ","))
         app.addItem(.separator())
         let services = NSMenuItem(title: "Dienste", action: nil, keyEquivalent: "")
         services.submenu = NSMenu(title: "Dienste"); app.addItem(services); NSApp.servicesMenu = services.submenu
@@ -591,6 +612,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         let view = submenu("Darstellung")
         view.addItem(menuItem("Ansicht einpassen", action: #selector(fitView), key: "0"))
         view.addItem(menuItem("Raster anzeigen", action: #selector(toggleGrid)))
+        view.addItem(.separator())
+        view.addItem(menuItem("Kamerabild anzeigen", action: #selector(toggleCamera), key: "k"))
+        view.addItem(menuItem("Kamerabild aktualisieren", action: #selector(refreshCamera), key: "k", modifiers: [.command, .shift]))
         let job = submenu("Job")
         job.addItem(menuItem("Auf dem Arbeitsbett zentrieren", action: #selector(centerArtwork)))
         job.addItem(menuItem("FAU-Materialprofil übernehmen", action: #selector(applyProfile)))
@@ -614,6 +638,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         })
         case #selector(centerArtwork): return model.project.hasArtwork && !model.busy
         case #selector(toggleGrid): item.state = model.showGrid ? .on : .off; return true
+        case #selector(toggleCamera): item.state = model.showCamera ? .on : .off; return !model.device.camera_url.isEmpty
+        case #selector(refreshCamera): return model.showCamera && !model.cameraLoading
         case #selector(openFile), #selector(openDemo), #selector(newProject), #selector(showSettings): return !model.busy
         default: return true
         }
@@ -634,12 +660,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     @objc func centerArtwork() { model.center() }
     @objc func fitView() { model.zoom = 1 }
     @objc func toggleGrid() { model.showGrid.toggle() }
+    @objc func toggleCamera() { model.toggleCamera() }
+    @objc func refreshCamera() { model.refreshCamera() }
     @objc func showMainWindow() { showWorkspace() }
     @objc func showSettings() {
         if let window = settingsWindow { window.makeKeyAndOrderFront(nil); return }
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 480, height: 260), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
         window.contentView = NSHostingView(rootView: DeviceSettings(model: model))
-        window.title = "Einstellungen"
+        window.title = "Lasercutter"
         window.isReleasedWhenClosed = false
         settingsWindow = window
         window.center(); window.makeKeyAndOrderFront(nil)
@@ -668,6 +696,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
 @main
 enum VisiCutRustApp {
     @MainActor static func main() {
+        if CommandLine.arguments.contains("--ui-test") {
+            // Never read or change the user's device list during self-tests.
+            let settings = FileManager.default.temporaryDirectory.appendingPathComponent("visicut-ui-test-\(UUID().uuidString)")
+            setenv("VISICUT_RUST_CONFIG_DIR", settings.path, 1)
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
@@ -689,9 +722,18 @@ struct Workspace: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(model.project.hasArtwork ? model.project.name : "Arbeitsbereich").font(.title2).fontWeight(.semibold)
-                        Text("LTT iLaser 4000 · 1000 × 600 mm").foregroundStyle(.secondary)
+                        Text("\(model.device.name) · 1000 × 600 mm" + (model.project.rotary_axis ? " · Drehachse" : "")).foregroundStyle(.secondary)
                     }
                     Spacer()
+                    if !model.device.camera_url.isEmpty {
+                        Toggle(isOn: Binding(get: { model.showCamera }, set: { _ in model.toggleCamera() })) {
+                            Image(systemName: "camera")
+                        }.toggleStyle(.button).help("Kamerabild anzeigen")
+                        if model.showCamera {
+                            if model.cameraLoading { ProgressView().controlSize(.small) }
+                            else { Button { model.refreshCamera() } label: { Image(systemName: "arrow.clockwise") }.help("Kamerabild aktualisieren") }
+                        }
+                    }
                     Button { model.zoom = max(0.5, model.zoom - 0.25) } label: { Image(systemName: "minus.magnifyingglass") }.help("Verkleinern")
                     Text("\(Int(model.zoom * 100)) %").monospacedDigit().frame(width: 48)
                     Button { model.zoom = min(3, model.zoom + 0.25) } label: { Image(systemName: "plus.magnifyingglass") }.help("Vergrößern")
@@ -761,7 +803,22 @@ struct Inspector: View {
         Form {
             Section("Projekt") {
                 TextField("Name", text: $model.project.name)
-                LabeledContent("Lasercutter", value: "LTT iLaser 4000")
+                LabeledContent("Lasercutter") {
+                    NativePopup(options: model.devices.devices.indices.map { PopupOption(String($0), model.devices.devices[$0].name) },
+                        selection: Binding(get: { String(model.devices.selected) }, set: { if let index = Int($0) { model.selectDevice(index) } }),
+                        identifier: "devicePicker")
+                        .frame(width: 180)
+                }
+            }
+            if model.device.rotary_axis {
+                Section("Drehachse") {
+                    Toggle("Drehachse verwenden", isOn: $model.project.rotary_axis)
+                    if model.project.rotary_axis {
+                        NumberField("Durchmesser", value: $model.project.rotary_diameter_mm, unit: "mm")
+                        Text("Y entspricht dem Umfang (\(format(Double.pi * model.project.rotary_diameter_mm)) mm). Gravur zentriert am Gerät ausrichten. Schritte je Umdrehung aus LibLaserCut, am Gerät nicht validiert.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
             }
             Section("Material") {
                 LabeledContent("Material") {
@@ -949,6 +1006,9 @@ struct JobPreview: View {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Ca. \(duration(prepared.estimated_seconds))").font(.title).monospacedDigit()
                         Text("Geschätzte Bearbeitungszeit").foregroundStyle(.secondary)
+                        ForEach(prepared.warnings, id: \.self) { warning in
+                            Label(warning, systemImage: "exclamationmark.triangle").font(.callout).foregroundStyle(.orange)
+                        }
                         ForEach(prepared.steps.indices, id: \.self) { index in
                             let step = prepared.steps[index]
                             VStack(alignment: .leading, spacing: 5) {
@@ -1054,21 +1114,6 @@ struct NumberField: View {
     }
 }
 
-struct DeviceSettings: View {
-    @ObservedObject var model: AppModel
-    var body: some View {
-        Form {
-            Section("LTT iLaser 4000 · FAU FabLab") {
-                TextField("Hostname / IP", text: $model.project.hostname)
-                TextField("Port", value: $model.project.port, format: .number.grouping(.never))
-                LabeledContent("Arbeitsbett", value: "1000 × 600 mm")
-                Text("Der Mac muss mit dem FabLab-Netz verbunden sein. Netzwerkparameter werden im Projekt gespeichert.")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-        }.formStyle(.grouped).padding(12).frame(width: 460)
-    }
-}
-
 struct BedCanvas: NSViewRepresentable {
     @ObservedObject var model: AppModel
     func makeNSView(context: Context) -> BedView { BedView(model: model) }
@@ -1099,9 +1144,12 @@ final class BedView: NSView {
         // The bed is document content: keep a white paper surface so black SVG
         // paths stay visible even when macOS chrome uses Dark Mode.
         NSColor.white.setFill(); bed.fill()
+        if model.showCamera, let camera = model.cameraImage {
+            camera.draw(in: bed, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+        }
         let path = NSBezierPath(rect: bed); path.lineWidth = 1
         NSColor(calibratedWhite: 0.65, alpha: 1).setStroke(); path.stroke()
-        if model.showGrid {
+        if model.showGrid && !(model.showCamera && model.cameraImage != nil) {
             let grid = NSBezierPath(); grid.lineWidth = 0.5
             let step = max(10, ceil(12 / scale / 10) * 10)
             for x in stride(from: 0.0, through: model.project.bed_width_mm, by: step) {
@@ -1158,6 +1206,55 @@ final class BedView: NSView {
         default: super.keyDown(with: event)
         }
     }
+}
+
+/// Device list, rotary jobs and the camera pipeline, using an isolated
+/// settings directory and a local image instead of a network camera.
+@MainActor
+func testDevicesRotaryAndCamera(_ model: AppModel) throws {
+    let fau = model.device
+    guard model.devices.devices.count == 1, fau.name == "LTT iLaser 4000", fau.rotary_axis,
+          fau.camera_calibration?.reference_points.count == 6, model.project.hostname == "lasercutter2"
+    else { throw CoreError("FAU-Lasercutter nicht als Standard eingerichtet") }
+    var store = model.devices
+    var second = fau
+    second.name = "LTT Test"; second.hostname = "127.0.0.1"; second.port = 9101; second.rotary_axis = false
+    let camera = FileManager.default.temporaryDirectory.appendingPathComponent("visicut-camera-\(UUID().uuidString).png")
+    let pixels = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 100, pixelsHigh: 60, bitsPerSample: 8,
+        samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    try pixels.representation(using: .png, properties: [:])!.write(to: camera)
+    defer { try? FileManager.default.removeItem(at: camera) }
+    second.camera_url = camera.path
+    second.camera_calibration = CameraCalibration(reference_points: [[0, 0], [1000, 600]], view_points: [[0, 0], [100, 60]])
+    store.devices.append(second)
+    guard model.saveDevices(store) else { throw CoreError("Geräteliste nicht gespeichert") }
+    model.project.rotary_axis = true
+    model.selectDevice(1)
+    guard model.project.hostname == "127.0.0.1", model.project.port == 9101, !model.project.rotary_axis
+    else { throw CoreError("Gerätewechsel übernimmt Ziel oder Drehachse nicht") }
+    let reloaded: DeviceList = try RustCore.decode("devices")
+    guard reloaded.store == model.devices, reloaded.store.selected == 1 else { throw CoreError("Geräteliste nicht dauerhaft gespeichert") }
+
+    let background: CameraBackground = try RustCore.decode("camera_background", project: model.project,
+        values: ["device": RustCore.json(model.device)])
+    guard let image = NSImage(data: Data(background.png)), image.size.width >= 100 else { throw CoreError("Kamerahintergrund fehlt") }
+    let shot: CameraPicture = try RustCore.decode("camera_image", values: ["device": RustCore.json(model.device)])
+    guard shot.width == 100, shot.height == 60 else { throw CoreError("Kamerabild falsch gelesen") }
+    let page: ProjectResponse = try RustCore.decode("calibration_page", project: model.project,
+        values: ["reference_points": fau.camera_calibration!.reference_points])
+    let calibrationJob: PreparedJob = try RustCore.decode("prepare", project: page.project)
+    guard page.objects?.count == 1, calibrationJob.steps.first?.operation == .mark else { throw CoreError("Kalibrierseite ungültig") }
+
+    model.selectDevice(0)
+    guard model.project.hostname == "lasercutter2" else { throw CoreError("Rückwechsel zum FAU-Gerät fehlgeschlagen") }
+    model.project.rotary_axis = true
+    model.project.rotary_diameter_mm = 80
+    let rotary: PreparedJob = try RustCore.decode("prepare", project: model.project)
+    guard rotary.warnings.contains(where: { $0.contains("Adjust rotary temp") }) else { throw CoreError("Drehachsen-Hinweis fehlt") }
+    model.project.rotary_diameter_mm = 2
+    guard (try? RustCore.decode("prepare", project: model.project) as PreparedJob) == nil else { throw CoreError("Zu kleiner Durchmesser akzeptiert") }
+    model.project.rotary_axis = false
+    model.project.rotary_diameter_mm = 100
 }
 
 @MainActor
@@ -1237,12 +1334,13 @@ func runUITest(_ model: AppModel) {
         model.project.x_mm -= 1
         model.preparedJob = mixed
         model.jobImage = NSImage(data: Data(mixed.preview_png))
+        try testDevicesRotaryAndCamera(model)
         // Exercise the actual asynchronous preparation and sheet presentation.
         model.preparedJob = nil
         model.jobImage = nil
         model.previewJob()
         model.dirty = false
-        print("Native UI state tests passed: material, thickness, operation, presets, proportional scaling, native save / Rust reload, Rust export, object assignments, mixed job preview and estimate, stale preview invalidation")
+        print("Native UI state tests passed: material, thickness, operation, presets, proportional scaling, native save / Rust reload, Rust export, object assignments, mixed job preview and estimate, stale preview invalidation, devices, rotary axis, camera background and calibration")
     } catch {
         fputs("Native UI tests failed: \(error)\n", stderr)
         exit(1)

@@ -6,12 +6,12 @@ if [[ "$(uname -s)" != Darwin ]]; then
   echo "Dieses Script benötigt macOS." >&2
   exit 1
 fi
-cargo build --release --lib --locked
+cargo build --release --lib --bin visicut-cameraserver --locked
 arch="$(uname -m)"
 xcrun swiftc -parse-as-library -swift-version 5 -O \
   -target "$arch-apple-macosx14.0" \
   -module-cache-path target/swift-module-cache \
-  native/VisiCutApp.swift native/JobSimulation.swift target/release/libvisicut_core.a \
+  native/VisiCutApp.swift native/JobSimulation.swift native/Devices.swift target/release/libvisicut_core.a \
   -o target/release/visicut-native \
   -framework SwiftUI -framework AppKit -framework CoreFoundation \
   -framework Security -framework OpenGL -framework CoreGraphics \
@@ -19,6 +19,8 @@ xcrun swiftc -parse-as-library -swift-version 5 -O \
 app="$project_dir/dist/VisiCutRust.app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp target/release/visicut-native "$app/Contents/MacOS/visicut-rust"
+cp target/release/visicut-cameraserver "$app/Contents/MacOS/visicut-cameraserver"
+codesign --force --sign - "$app/Contents/MacOS/visicut-cameraserver"
 cp ../distribute/mac/MacIcon.icns "$app/Contents/Resources/VisiCut.icns"
 cp ../COPYING "$app/Contents/Resources/COPYING"
 cp ../COPYING.LESSER "$app/Contents/Resources/COPYING.LESSER"

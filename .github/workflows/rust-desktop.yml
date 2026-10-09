@@ -101,7 +101,7 @@ jobs:
         run: cargo test --locked --all-targets
 
       - name: Build portable desktop application
-        run: cargo build --locked --release --bin visicut-rust
+        run: cargo build --locked --release --bins
 
       - name: Build and sign native macOS application
         if: runner.os == 'macOS'

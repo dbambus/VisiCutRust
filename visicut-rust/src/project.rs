@@ -23,6 +23,11 @@ pub struct Project {
     #[serde(default = "default_port")]
     pub port: u16,
     pub steps: Vec<JobStep>,
+    /// Rotary engraving: Y becomes the rotation of a cylinder of this diameter.
+    #[serde(default)]
+    pub rotary_axis: bool,
+    #[serde(default = "default_rotary_diameter")]
+    pub rotary_diameter_mm: f32,
 }
 
 /// Explicit object selections; an empty list retains the legacy whole-SVG job.
@@ -63,6 +68,10 @@ struct ProjectFile {
     port: u16,
     #[serde(default)]
     steps: Vec<JobStep>,
+    #[serde(default)]
+    rotary_axis: bool,
+    #[serde(default = "default_rotary_diameter")]
+    rotary_diameter_mm: f32,
 }
 
 impl TryFrom<ProjectFile> for Project {
@@ -103,6 +112,8 @@ impl TryFrom<ProjectFile> for Project {
             hostname: file.hostname,
             port: file.port,
             steps: file.steps,
+            rotary_axis: file.rotary_axis,
+            rotary_diameter_mm: file.rotary_diameter_mm,
         })
     }
 }
@@ -112,6 +123,10 @@ fn default_host() -> String {
 }
 fn default_port() -> u16 {
     9100
+}
+// VisiCut's default rotary diameter.
+fn default_rotary_diameter() -> f32 {
+    100.0
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -159,6 +174,8 @@ impl Default for Project {
             hostname: default_host(),
             port: default_port(),
             steps: Vec::new(),
+            rotary_axis: false,
+            rotary_diameter_mm: default_rotary_diameter(),
         }
     }
 }
@@ -206,6 +223,12 @@ impl Project {
         }
         if !(1..=100).contains(&self.passes) {
             return Err("Durchgänge müssen zwischen 1 und 100 liegen".into());
+        }
+        // The LTT driver requires at least 5 mm and stores the radius in 0.01 mm.
+        if !self.rotary_diameter_mm.is_finite()
+            || !(5.0..=1000.0).contains(&self.rotary_diameter_mm)
+        {
+            return Err("Durchmesser für die Drehachse muss zwischen 5 und 1000 mm liegen".into());
         }
         if !self.x_mm.is_finite() || !self.y_mm.is_finite() {
             return Err("Position muss endlich sein".into());

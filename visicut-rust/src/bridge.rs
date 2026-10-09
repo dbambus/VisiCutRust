@@ -1,6 +1,12 @@
 //! Stateless C ABI for the native macOS shell. The caller owns requests and
 //! must release each response with visicut_free. No Rust state crosses the ABI.
-use crate::{ltt, project::Project, svg};
+use crate::{
+    camera,
+    device::{self, DeviceStore, LaserDevice},
+    ltt,
+    project::Project,
+    svg,
+};
 use serde_json::{Value, json};
 use std::ffi::{CStr, CString, c_char};
 
@@ -33,6 +39,23 @@ fn read(path: &str) -> Result<String, String> {
         return Err("Datei ist größer als 25 MB".into());
     }
     std::fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
+fn get<T: serde::de::DeserializeOwned>(request: &Value, key: &str) -> Result<T, String> {
+    serde_json::from_value(request[key].clone()).map_err(|e| format!("{key}: {e}"))
+}
+
+fn path(request: &Value) -> Result<&str, String> {
+    request["path"]
+        .as_str()
+        .ok_or_else(|| "Dateipfad fehlt".into())
+}
+
+fn merge_devices(request: &Value, devices: Vec<LaserDevice>) -> Result<Value, String> {
+    let mut store: DeviceStore = get(request, "store")?;
+    let imported = store.merge(devices);
+    store.save(&device::config_dir())?;
+    Ok(json!({"store": store, "imported": imported}))
 }
 
 pub(crate) fn execute(request: &Value) -> Result<Value, String> {
@@ -77,6 +100,78 @@ pub(crate) fn execute(request: &Value) -> Result<Value, String> {
                 json!({"project": project, "preview": image, "objects": crate::selection::objects(&project.svg)?}),
             )
         }
+        "devices" => {
+            // A damaged list must not prevent starting; it is replaced only on save.
+            let (store, error) = match DeviceStore::load(&device::config_dir()) {
+                Ok(store) => (store, None),
+                Err(error) => (DeviceStore::default(), Some(error)),
+            };
+            Ok(json!({
+                "store": store,
+                "error": error,
+                "labs": device::LAB_SETTINGS.iter().map(|(name, url)| json!({"name": name, "url": url})).collect::<Vec<_>>(),
+            }))
+        }
+        "save_devices" => {
+            get::<DeviceStore>(request, "store")?.save(&device::config_dir())?;
+            Ok(json!({}))
+        }
+        "import_devices" => {
+            let bytes = std::fs::read(path(request)?).map_err(|e| e.to_string())?;
+            merge_devices(request, device::import_bytes(&bytes)?)
+        }
+        "download_devices" => merge_devices(
+            request,
+            device::download(request["url"].as_str().ok_or("URL fehlt")?)?,
+        ),
+        "export_devices" => {
+            device::export(
+                std::path::Path::new(path(request)?),
+                &get::<Vec<LaserDevice>>(request, "devices")?,
+            )?;
+            Ok(json!({}))
+        }
+        "homography" => Ok(json!({"matrix": camera::homography(&get(request, "calibration")?)?})),
+        "camera_image" => {
+            let image = camera::capture(&get(request, "device")?)?;
+            Ok(
+                json!({"png": camera::encode_png(&image)?, "width": image.width(), "height": image.height()}),
+            )
+        }
+        "camera_background" => {
+            let project = get_project(request)?;
+            let png = camera::background(
+                &get(request, "device")?,
+                project.bed_width_mm as f64,
+                project.bed_height_mm as f64,
+            )?;
+            Ok(json!({"png": png}))
+        }
+        "calibration_page" => {
+            let mut project = get_project(request)?;
+            let points: Vec<[f64; 2]> = get(request, "reference_points")?;
+            if points.iter().any(|p| {
+                !(5.0..=project.bed_width_mm as f64 - 5.0).contains(&p[0])
+                    || !(5.0..=project.bed_height_mm as f64 - 15.0).contains(&p[1])
+            }) {
+                return Err("Kalibrierpunkte müssen mindestens 5 mm (unten 15 mm) vom Bettrand entfernt sein".into());
+            }
+            project.svg = camera::calibration_svg(
+                &points,
+                project.bed_width_mm as f64,
+                project.bed_height_mm as f64,
+            );
+            project.name = "Kalibrierung".into();
+            project.steps.clear();
+            project.rotary_axis = false;
+            (project.x_mm, project.y_mm) = (0.0, 0.0);
+            (project.width_mm, project.height_mm) = (project.bed_width_mm, project.bed_height_mm);
+            project.operation = crate::project::Operation::Mark;
+            let image = preview(&project.svg)?;
+            Ok(
+                json!({"project": project, "preview": image, "objects": crate::selection::objects(&project.svg)?}),
+            )
+        }
         "validate_document" => {
             get_project(request)?.validate_document()?;
             Ok(json!({}))
@@ -86,14 +181,17 @@ pub(crate) fn execute(request: &Value) -> Result<Value, String> {
             Ok(
                 json!({"jobs": prepared.jobs, "description": prepared.description,
                 "estimated_seconds": prepared.estimated_seconds, "preview_png": prepared.preview_png,
-                "steps": prepared.steps, "timeline": prepared.timeline}),
+                "steps": prepared.steps, "timeline": prepared.timeline,
+                "warnings": prepared.warnings}),
             )
         }
         "transmit" => {
             let project = get_project(request)?;
             let prepared = ltt::prepare(&project)?;
             let sent = ltt::transmit_jobs(&project.hostname, project.port, &prepared.jobs)?;
-            Ok(json!({"description": prepared.description, "sent": sent}))
+            Ok(
+                json!({"description": prepared.description, "sent": sent, "warnings": prepared.warnings}),
+            )
         }
         _ => Err("Unbekannte Aktion".into()),
     }
@@ -173,6 +271,50 @@ mod tests {
         let result = execute(&json!({"action": "demo", "project": p})).unwrap();
         assert_eq!(result["objects"].as_array().unwrap().len(), 3);
         assert!(result["project"]["steps"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn device_actions_persist_import_export_and_calibration_page() {
+        let dir = std::env::temp_dir().join(format!("visicut-bridge-{}", std::process::id()));
+        // Only this test reads the configuration directory.
+        unsafe { std::env::set_var("VISICUT_RUST_CONFIG_DIR", &dir) };
+        let listed = execute(&json!({"action": "devices"})).unwrap();
+        assert_eq!(
+            listed["store"]["devices"][0]["camera_url"],
+            "https://marvin.fablab.fau.de/image"
+        );
+        assert!(listed["labs"].as_array().unwrap().len() > 20);
+        let export = dir.join("devices.vcrdevices");
+        std::fs::create_dir_all(&dir).unwrap();
+        execute(&json!({"action": "export_devices", "path": export, "devices": listed["store"]["devices"]}))
+            .unwrap();
+        let merged =
+            execute(&json!({"action": "import_devices", "path": export, "store": listed["store"]}))
+                .unwrap();
+        assert_eq!(merged["imported"], 1);
+        assert_eq!(merged["store"]["devices"][1]["name"], "LTT iLaser 4000 (2)");
+        let reloaded = execute(&json!({"action": "devices"})).unwrap();
+        assert_eq!(reloaded["store"], merged["store"]);
+        let mut broken = merged["store"].clone();
+        broken["selected"] = json!(5);
+        assert!(execute(&json!({"action": "save_devices", "store": broken})).is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        let page = execute(
+            &json!({"action": "calibration_page", "project": Project::default(),
+            "reference_points": [[200.0, 120.0], [800.0, 480.0], [800.0, 120.0], [200.0, 480.0]]}),
+        )
+        .unwrap();
+        let project: Project = serde_json::from_value(page["project"].clone()).unwrap();
+        assert_eq!((project.width_mm, project.height_mm), (1000.0, 600.0));
+        assert!(ltt::prepare(&project).is_ok());
+        assert!(
+            execute(
+                &json!({"action": "calibration_page", "project": Project::default(),
+            "reference_points": [[2.0, 120.0]]})
+            )
+            .is_err()
+        );
     }
 
     #[test]
