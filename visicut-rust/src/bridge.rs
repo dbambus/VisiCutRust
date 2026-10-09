@@ -109,10 +109,14 @@ pub(crate) fn execute(request: &Value) -> Result<Value, String> {
         }
         "demo" | "import" => {
             let mut project = get_project(request)?;
+            let mut warnings = Vec::new();
             project.svg = if request["action"] == "demo" {
                 include_str!("../examples/demo.svg").into()
             } else {
-                read(request["path"].as_str().ok_or("Dateipfad fehlt")?)?
+                let path = request["path"].as_str().ok_or("Dateipfad fehlt")?;
+                let imported = crate::svg_import::read_svg_file(std::path::Path::new(path))?;
+                warnings = imported.warnings;
+                imported.svg
             };
             project.steps.clear();
             let image = preview(&project.svg)?;
@@ -128,7 +132,7 @@ pub(crate) fn execute(request: &Value) -> Result<Value, String> {
                     .into()
             };
             Ok(
-                json!({"project": project, "preview": image, "objects": crate::selection::objects(&project.svg)?}),
+                json!({"project": project, "preview": image, "objects": crate::selection::objects(&project.svg)?, "warnings": warnings}),
             )
         }
         "load" => {
@@ -301,6 +305,23 @@ mod tests {
         let png: Vec<u8> = serde_json::from_value(result["preview"]["png"].clone()).unwrap();
         assert!(resvg::tiny_skia::Pixmap::decode_png(&png).is_ok());
         assert_eq!(result["project"]["width_mm"], 100.0);
+    }
+    #[test]
+    fn import_reports_images_that_cannot_be_embedded() {
+        let dir =
+            std::env::temp_dir().join(format!("visicut-bridge-import-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("art.svg");
+        std::fs::write(
+            &path,
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="10mm" height="10mm"><rect width="5" height="5"/><image width="5" height="5" href="missing.png"/></svg>"#,
+        )
+        .unwrap();
+        let result =
+            execute(&json!({"action": "import", "project": Project::default(), "path": path}));
+        std::fs::remove_dir_all(&dir).unwrap();
+        let warnings = result.unwrap()["warnings"].clone();
+        assert!(warnings[0].as_str().unwrap().contains("missing.png"));
     }
     #[test]
     fn new_artwork_resets_old_assignments_and_returns_object_list() {

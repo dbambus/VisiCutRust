@@ -9,4 +9,5 @@ pub mod project;
 pub mod raster;
 pub mod selection;
 pub mod svg;
+pub mod svg_import;
 pub mod timeline;

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use visicut_core::{
     ltt,
     project::{Operation, Project},
-    svg,
+    svg, svg_import,
 };
 
 struct VisiCutRust {
@@ -97,21 +97,20 @@ impl VisiCutRust {
         if meta.len() > 25 * 1024 * 1024 {
             return Err("Datei ist größer als 25 MB".into());
         }
-        let source = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
         if path
             .extension()
             .and_then(|e| e.to_str())
             .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
         {
-            self.import(
-                ctx,
-                source,
-                path.file_stem()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into(),
-            )
+            let imported = svg_import::read_svg_file(path)?;
+            let name = path.file_stem().unwrap_or_default().to_string_lossy();
+            self.import(ctx, imported.svg, name.into())?;
+            for warning in imported.warnings {
+                self.status = format!("{} · {warning}", self.status);
+            }
+            Ok(())
         } else {
+            let source = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
             let project: Project =
                 serde_json::from_str(&source).map_err(|e| format!("Ungültiges Projekt: {e}"))?;
             project.validate()?;
