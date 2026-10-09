@@ -123,10 +123,25 @@ Wiederholung nach Fehlern.
   VisiCut-Einstellungen, beim FAU-Gerät „Autofokus machen, Druckluft an“).
 - SVG und `.vcr` werden unterstützt. Version 0.2 ergänzt eine native
   AppKit-/SwiftUI-Oberfläche und eine Auswahl der FAU-LTT-Materialprofile.
-  Bestehende VisiCut-PLF-Dateien, DXF/EPS, allgemeiner Materialbibliothek-
+  Bestehende VisiCut-PLF-Dateien, DXF, allgemeiner Materialbibliothek-
   Import und andere Gerätetreiber fehlen. Nur der LTT iLaser 4000
   (1000 × 600 mm, 4000 DPI) wird unterstützt; andere Geräte werden beim
   Import abgewiesen.
+- PDF-Import (neu gegenüber Java-VisiCut, das kein PDF liest): Seite 1 wird
+  mit `hayro-svg` (reines Rust, MIT/Apache-2.0) in SVG umgewandelt; Pfade,
+  Farben, Linienstärken und eingebettete Bilder bleiben erhalten, Text wird zu
+  Glyphenkonturen. Größe aus der CropBox in pt (× 25,4/72 mm). Linienstärke 0
+  (PDF: dünnste Linie) wird zu 0,1 mm. Nicht seitenfüllende Clip-Pfade und
+  Soft-Masks bleiben für die Vorschau erhalten, verhindern aber das Schneiden
+  (Hinweis beim Import).
+- EPS/PS: Java-VisiCut nutzt einen eingebauten PostScript-Interpreter
+  (`EPSImporter`, BoundingBox, 72 DPI). Die Rust-Version ruft stattdessen
+  Ghostscript auf (`-sDEVICE=pdfwrite -dEPSCrop -dSAFER -dNoOutputFonts`,
+  60 s Zeitlimit, temporäre Datei im Temp-Ordner) und importiert das Ergebnis
+  als PDF. Gesucht wird im `PATH`, unter macOS zusätzlich in
+  `/opt/homebrew/bin` und `/usr/local/bin`, unter Windows in
+  `Programme\gs\*\bin`. Ohne Ghostscript wird der Import mit Hinweis
+  abgelehnt.
 
 Dies ist ein ausführbarer Anfang der Portierung mit durchgehendem
 SVG→Rust→LTT-Workflow, keine vollständige Funktionsparität mit VisiCut.
