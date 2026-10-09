@@ -13,7 +13,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target", choices=[
         "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc",
-        "x86_64-apple-darwin", "aarch64-apple-darwin",
+        "aarch64-apple-darwin",
     ])
     target = parser.parse_args().target
     project = Path(__file__).resolve().parent.parent

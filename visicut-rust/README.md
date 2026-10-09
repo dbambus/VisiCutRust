@@ -8,9 +8,8 @@ Erster Ziel-Lasercutter: LTT iLaser 4000 des FAU FabLabs.
 
 Die lokal gebaute App befindet sich in `dist/VisiCutRust.app`.
 Version 0.3.0 benötigt macOS 14 oder neuer, weder Java noch Maven.
-Dieser Build verwendet die Architektur
-des Build-Macs. Die GitHub-Releases enthalten eine Universal-App für
-Apple Silicon und Intel in einem einzigen Download.
+Die macOS-App wird nur für Apple Silicon
+gebaut und veröffentlicht; Intel-Macs werden nicht unterstützt.
 
 Für einen Build aus dem Quellcode werden Rust 1.90 und die Xcode Command
 Line Tools benötigt:
@@ -38,28 +37,25 @@ Zeitslider ist macOS-spezifisch. Windows/Linux verwenden den gemeinsamen
 SVG-/LTT-Kern und können gespeicherte `.vcr`-Projekte öffnen, haben aber noch
 nicht dieselben Bedienfunktionen.
 
-Der Workflow **VisiCutRust releases** baut vier native Ziele auf GitHub-gehosteten Runnern:
+Der Workflow **VisiCutRust releases** baut drei native Ziele auf GitHub-gehosteten Runnern:
 
 | Ziel | Oberfläche | Download-Artefakt |
 | --- | --- | --- |
 | Windows x64 / MSVC | egui | ZIP mit EXE |
 | Linux x64 / Ubuntu 24.04 | egui, X11/Wayland | tar.gz mit ausführbarer Datei |
-| macOS Intel | native AppKit/SwiftUI | ZIP mit `.app` |
 | macOS Apple Silicon | native AppKit/SwiftUI | ZIP mit `.app` |
 
 Bei Pull Requests und Änderungen an `master`/`main` laufen Rust-Tests auf
-allen vier Zielen. Linux prüft zusätzlich Formatierung und Clippy; beide
-Mac-Ziele bauen und signieren das Bundle und testen die native Oberfläche
+allen drei Zielen. Linux prüft zusätzlich Formatierung und Clippy; das
+Mac-Ziel baut und signiert das Bundle und testet die native Oberfläche
 einschließlich Zeitslider. TCP-Tests verwenden ausschließlich localhost.
 Die Downloads und Mac-Testbilder liegen unter **Actions → VisiCutRust releases →
 Artifacts** (14 Tage Aufbewahrung). Tags im Format `v<Version>` veröffentlichen
-nach erfolgreichen Builds auf allen vier Zielen automatisch eine
+nach erfolgreichen Builds auf allen drei Zielen automatisch eine
 [GitHub Release](https://github.com/dbambus/VisiCutRust/releases) mit drei
 Archiven und `SHA256SUMS.txt`. Tag und Cargo-Version müssen übereinstimmen.
-Die beiden Mac-Bundles sind Zwischenartefakte: `lipo` kombiniert ihre ausführbaren
-Dateien, die Universal-App wird erneut signiert und auf Intel sowie Apple
-Silicon getestet. Der öffentliche macOS-Download heißt
-`VisiCutRust-<Version>-universal-apple-darwin.zip` und enthält beide Architekturen.
+Der macOS-Download heißt
+`VisiCutRust-<Version>-aarch64-apple-darwin.zip`.
 Versionen unter 1.0 sowie Versionen mit Suffix werden als Vorabversion markiert.
 Ein manueller Lauf auf einem Branch baut nur Artefakte; auf einem vorhandenen
 Versionstag kann er die Veröffentlichung wiederholen.
@@ -80,18 +76,6 @@ eine kompatible glibc-Laufzeit voraus. Die Pakete enthalten Hinweise zum Start
 und zum Funktionsumfang. `scripts/package-ci.py` erstellt dieselben Archive
 lokal nach einem Build für die jeweilige Host-Architektur.
 
-Für eine lokale Universal-App zunächst die Intel- und Apple-Silicon-Archive
-auf den jeweiligen Macs mit `scripts/package-ci.py` erstellen und anschließend
-auf einem Mac zusammenführen:
-
-```sh
-python3 scripts/package-macos-universal.py \
-  /path/to/VisiCutRust-0.3.0-x86_64-apple-darwin.zip \
-  /path/to/VisiCutRust-0.3.0-aarch64-apple-darwin.zip
-```
-
-Das Skript prüft Version, Ressourcen, beide Architekturen und die neue
-Ad-hoc-Signatur. Das fertige ZIP liegt in `dist`.
 
 ## Workflow
 
