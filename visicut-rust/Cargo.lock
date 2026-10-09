@@ -3206,6 +3206,7 @@ name = "visicut-rust"
 version = "0.3.0"
 dependencies = [
  "eframe",
+ "epaint_default_fonts",
  "image",
  "resvg",
  "rfd",

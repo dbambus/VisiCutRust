@@ -62,8 +62,10 @@ Wiederholung nach Fehlern.
   Objekte bearbeiten. Pro Verfahren entsteht ein eigenständig gerahmter
   LTT-Job mit allen Schritten dieses Verfahrens, in der Reihenfolge
   Engrav → Eng3D → Mark → Cut, mit jeweils eigener TCP-Verbindung.
-  Text muss vor dem Schneiden in Pfade umgewandelt werden; Rasterbilder,
-  Masken, Clipping und Filter werden beim Schneiden abgewiesen.
+  Text wird beim Schneiden und Markieren als Glyphenumriss bearbeitet
+  (Systemschriften, Ersatz Ubuntu Light/Hack aus egui); fehlt für ein
+  Zeichen jede Schrift, wird der Auftrag abgewiesen. Rasterbilder, Masken,
+  Clipping und Filter werden beim Schneiden abgewiesen.
 - Gravur mit den LibLaserCut-Rasterverfahren Floyd-Steinberg, Mittelwert,
   Zufall, Geordnet, Raster, Halbton und Halbton aufgehellt (FAU-Standard) sowie
   dem früheren Schwellwert 128 (ältere Projekte). Graustufen nach
