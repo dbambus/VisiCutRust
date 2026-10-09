@@ -228,7 +228,7 @@ struct JobSimulation: View {
     }
 }
 
-private struct SimulationCanvas: View {
+private struct SimulationCanvas: NSViewRepresentable {
     let timeline: LaserTimeline
     let project: Project
     let image: NSImage?
@@ -236,85 +236,117 @@ private struct SimulationCanvas: View {
     let frame: LaserFrame?
     let seconds: Double
 
+    func makeNSView(context: Context) -> SimulationView { SimulationView() }
+    func updateNSView(_ view: SimulationView, context: Context) { view.canvas = self; view.needsDisplay = true }
+
     private var viewport: CGRect {
         var bounds = CGRect(x: project.x_mm, y: project.y_mm, width: project.width_mm, height: project.height_mm)
         if let drawing, !drawing.motionBounds.isNull { bounds = bounds.union(drawing.motionBounds) }
         return bounds.insetBy(dx: -max(2, bounds.width * 0.05), dy: -max(2, bounds.height * 0.05))
     }
 
-    var body: some View {
+    func draw(in context: CGContext, size: CGSize) {
         let viewport = viewport
-        Canvas { context, size in
-            let scale = min(size.width / viewport.width, size.height / viewport.height)
-            let offset = CGPoint(x: (size.width - viewport.width * scale) / 2 - viewport.minX * scale,
-                y: (size.height - viewport.height * scale) / 2 - viewport.minY * scale)
-            let transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: offset.x, ty: offset.y)
-            let artwork = CGRect(x: project.x_mm, y: project.y_mm, width: project.width_mm, height: project.height_mm)
-            if let image {
-                var ghost = context; ghost.opacity = 0.18
-                ghost.draw(Image(nsImage: image), in: artwork.applying(transform))
-            }
-            guard let frame, let drawing else { return }
-            let completed = Set(timeline.runs.prefix(frame.runIndex).map(\.program_index))
-            for (index, program) in timeline.programs.enumerated() {
-                let full = completed.contains(index) || (frame.finished && index == frame.programIndex)
-                let active = index == frame.programIndex && seconds > 0
-                guard full || active else { continue }
-                if let raster = drawing.rasterImages[index], let b = program.raster_bounds_mm {
-                    let bounds = CGRect(x: b[0], y: b[1], width: b[2], height: b[3])
-                    var layer = context
-                    if !full {
-                        var revealed = Path()
-                        if let mi = frame.motionIndex {
-                            let motion = program.motions[mi]
-                            if motion.kind == .raster {
-                                revealed.addRect(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
-                                    height: max(0, motion.from_mm[1] - bounds.minY)))
-                                revealed.addRect(CGRect(x: bounds.minX, y: motion.from_mm[1],
-                                    width: max(0, min(bounds.width, frame.position.x - bounds.minX)), height: 25.4 / 500))
-                            } else if let previous = program.motions[..<mi].last(where: { $0.kind == .raster }) {
-                                revealed.addRect(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
-                                    height: max(0, previous.to_mm[1] + 25.4 / 500 - bounds.minY)))
-                            }
+        let scale = min(size.width / viewport.width, size.height / viewport.height)
+        let offset = CGPoint(x: (size.width - viewport.width * scale) / 2 - viewport.minX * scale,
+            y: (size.height - viewport.height * scale) / 2 - viewport.minY * scale)
+        let transform = CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: offset.x, ty: offset.y)
+        let artwork = CGRect(x: project.x_mm, y: project.y_mm, width: project.width_mm, height: project.height_mm)
+        func stroke(_ path: Path, _ color: Color, _ width: CGFloat, dash: [CGFloat] = []) {
+            context.addPath(path.cgPath)
+            context.setStrokeColor(NSColor(color).cgColor)
+            context.setLineWidth(width)
+            context.setLineDash(phase: 0, lengths: dash)
+            context.strokePath()
+        }
+        if let image {
+            image.draw(in: artwork.applying(transform), from: .zero, operation: .sourceOver, fraction: 0.18,
+                respectFlipped: true, hints: nil)
+        }
+        guard let frame, let drawing else { return }
+        let completed = Set(timeline.runs.prefix(frame.runIndex).map(\.program_index))
+        for (index, program) in timeline.programs.enumerated() {
+            let full = completed.contains(index) || (frame.finished && index == frame.programIndex)
+            let active = index == frame.programIndex && seconds > 0
+            guard full || active else { continue }
+            if let raster = drawing.rasterImages[index], let b = program.raster_bounds_mm {
+                let bounds = CGRect(x: b[0], y: b[1], width: b[2], height: b[3])
+                context.saveGState()
+                var visible = true
+                if !full {
+                    var revealed = Path()
+                    if let mi = frame.motionIndex {
+                        let motion = program.motions[mi]
+                        if motion.kind == .raster {
+                            revealed.addRect(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                                height: max(0, motion.from_mm[1] - bounds.minY)))
+                            revealed.addRect(CGRect(x: bounds.minX, y: motion.from_mm[1],
+                                width: max(0, min(bounds.width, frame.position.x - bounds.minX)), height: 25.4 / 500))
+                        } else if let previous = program.motions[..<mi].last(where: { $0.kind == .raster }) {
+                            revealed.addRect(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
+                                height: max(0, previous.to_mm[1] + 25.4 / 500 - bounds.minY)))
                         }
-                        layer.clip(to: revealed.applying(transform))
                     }
-                    layer.draw(Image(nsImage: raster), in: bounds.applying(transform))
+                    // An empty Core Graphics clip path leaves the clip unchanged,
+                    // whereas nothing has been engraved yet.
+                    visible = !revealed.isEmpty
+                    context.addPath(revealed.applying(transform).cgPath)
+                    context.clip()
                 }
-                if let chunks = drawing.cuts[index] {
-                    let limit = full ? program.motions.count : frame.motionIndex ?? 0
-                    for chunk in chunks {
-                        if chunk.end <= limit {
-                            context.stroke(chunk.path.applying(transform), with: .color(program.operation.color), lineWidth: 1.5)
-                        } else if chunk.start < limit {
-                            var partial = Path()
-                            for motion in program.motions[chunk.start..<limit] where (motion.kind == .cut || motion.kind == .mark) {
-                                partial.move(to: point(motion.from_mm)); partial.addLine(to: point(motion.to_mm))
-                            }
-                            context.stroke(partial.applying(transform), with: .color(program.operation.color), lineWidth: 1.5)
-                            break
-                        } else { break }
-                    }
+                if visible {
+                    raster.draw(in: bounds.applying(transform), from: .zero, operation: .sourceOver, fraction: 1,
+                        respectFlipped: true, hints: nil)
+                }
+                context.restoreGState()
+            }
+            if let chunks = drawing.cuts[index] {
+                let limit = full ? program.motions.count : frame.motionIndex ?? 0
+                for chunk in chunks {
+                    if chunk.end <= limit {
+                        stroke(chunk.path.applying(transform), program.operation.color, 1.5)
+                    } else if chunk.start < limit {
+                        var partial = Path()
+                        for motion in program.motions[chunk.start..<limit] where (motion.kind == .cut || motion.kind == .mark) {
+                            partial.move(to: point(motion.from_mm)); partial.addLine(to: point(motion.to_mm))
+                        }
+                        stroke(partial.applying(transform), program.operation.color, 1.5)
+                        break
+                    } else { break }
                 }
             }
-            if !frame.finished {
-                var current = Path(); current.move(to: frame.from.applying(transform)); current.addLine(to: frame.position.applying(transform))
-                if frame.kind == .travel {
-                    context.stroke(current, with: .color(.gray), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                } else if frame.kind == .cut || frame.kind == .mark {
-                    context.stroke(current, with: .color(timeline.programs[frame.programIndex].operation.color), lineWidth: 2)
-                }
+        }
+        if !frame.finished {
+            var current = Path(); current.move(to: frame.from.applying(transform)); current.addLine(to: frame.position.applying(transform))
+            if frame.kind == .travel {
+                stroke(current, .gray, 1, dash: [4, 3])
+            } else if frame.kind == .cut || frame.kind == .mark {
+                stroke(current, timeline.programs[frame.programIndex].operation.color, 2)
             }
-            let raw = frame.position.applying(transform)
-            let marker = CGPoint(x: min(max(8, raw.x), size.width - 8), y: min(max(8, raw.y), size.height - 8))
-            let circle = Path(ellipseIn: CGRect(x: marker.x - 5, y: marker.y - 5, width: 10, height: 10))
-            context.fill(circle, with: .color(.yellow))
-            context.stroke(circle, with: .color(.black.opacity(0.8)), lineWidth: 1.5)
-            if raw != marker {
-                context.draw(Text("Anfahrt außerhalb des Ausschnitts").font(.caption2).foregroundColor(.gray),
-                    at: CGPoint(x: size.width / 2, y: 12))
-            }
-        }.clipped()
+        }
+        let raw = frame.position.applying(transform)
+        let marker = CGPoint(x: min(max(8, raw.x), size.width - 8), y: min(max(8, raw.y), size.height - 8))
+        let circle = CGRect(x: marker.x - 5, y: marker.y - 5, width: 10, height: 10)
+        context.setFillColor(NSColor.systemYellow.cgColor)
+        context.fillEllipse(in: circle)
+        stroke(Path(ellipseIn: circle), .black.opacity(0.8), 1.5)
+        if raw != marker {
+            let note = NSAttributedString(string: "Anfahrt außerhalb des Ausschnitts", attributes: [
+                .font: NSFont.preferredFont(forTextStyle: .caption2), .foregroundColor: NSColor.gray])
+            let noteSize = note.size()
+            note.draw(at: CGPoint(x: (size.width - noteSize.width) / 2, y: 12 - noteSize.height / 2))
+        }
+    }
+}
+
+/// SwiftUI's Canvas renders through Metal, which aborts on Macs without a usable
+/// GPU such as the Intel CI virtual machines; Core Graphics draws everywhere.
+private final class SimulationView: NSView {
+    var canvas: SimulationCanvas?
+    override var isFlipped: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        guard let canvas, let context = NSGraphicsContext.current?.cgContext else { return }
+        context.clip(to: bounds)
+        canvas.draw(in: context, size: bounds.size)
     }
 }
 
