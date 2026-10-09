@@ -406,6 +406,19 @@ mod dash_tests {
     }
 
     #[test]
+    fn keeps_dashes_and_transforms_when_text_is_present() {
+        let body = format!(
+            r#"<g transform="translate(0 20)">{}</g><text x="50" y="50" font-size="10">H</text>"#,
+            line(r#"stroke-dasharray="5 5""#)
+        );
+        let paths = cut(&body).unwrap();
+        let dashes: Vec<_> = paths.iter().filter(|p| p[0][1] < 40.0).cloned().collect();
+        assert_dashes(&dashes, &[(0.0, 5.0), (10.0, 5.0), (20.0, 5.0)]);
+        assert!(dashes.iter().flatten().all(|p| (p[1] - 30.0).abs() < 1e-3));
+        assert!(paths.len() > dashes.len());
+    }
+
+    #[test]
     fn honours_positive_and_negative_dashoffset() {
         let paths = cut(&line(r#"stroke-dasharray="5 5" stroke-dashoffset="2""#)).unwrap();
         assert_dashes(&paths, &[(0.0, 3.0), (8.0, 5.0), (18.0, 5.0), (28.0, 2.0)]);
