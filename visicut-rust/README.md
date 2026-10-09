@@ -174,7 +174,15 @@ wird das neue Format verwendet; die ursprüngliche Datei wird beim Öffnen
 nicht verändert.
 Entwürfe können auch ohne Motiv oder mit einer noch unpassenden Position
 gesichert werden; das Senden prüft strengere Bedingungen.
-Bestehende `.plf`-Dateien lassen sich noch nicht öffnen.
+VisiCut-Projekte (`.plf`) werden importiert: Alle Teile erscheinen als
+benannte Gruppen an ihrer gespeicherten Position und Größe auf dem
+Arbeitsbett. Zuordnungen und Laser-Einstellungen der PLF-Datei werden nicht
+übernommen (Hinweis beim Öffnen); sie werden in VisiCutRust neu gewählt.
+Parametrische SVG (`.parametric.svg`, `.psvg`) werden mit den Standardwerten
+ihrer Parameter bzw. den in der PLF gespeicherten Werten erzeugt; der Hinweis
+nennt die verwendeten Werte. LaserScript-Dateien (`.ls`) laufen in einer
+abgeschotteten JavaScript-Umgebung ohne Datei- und Netzzugriff mit
+Zeitlimit (5 s); `prompt`-Abfragen erhalten ihren Vorgabewert.
 
 ## Lasercutter, Drehachse und Kamera
 
