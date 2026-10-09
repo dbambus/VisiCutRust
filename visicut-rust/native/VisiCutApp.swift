@@ -1275,6 +1275,10 @@ func captureUITest(_ model: AppModel, deadline: Date) {
             for root in roots { dumpNativeViews(root) }
             exit(1)
         }
+        // Finish the asynchronous setup before checking that slider actions do
+        // not dirty the document. SwiftUI may commit focused fields while the
+        // preview is being presented on older macOS versions.
+        model.dirty = false
         let document = model.project
         @MainActor func moveSlider(_ value: Double) {
             slider.doubleValue = value
@@ -1288,7 +1292,7 @@ func captureUITest(_ model: AppModel, deadline: Date) {
         let markRun = prepared.timeline.runs.first { prepared.timeline.programs[$0.program_index].operation == .mark }!
         moveSlider((markRun.entry_end_seconds + markRun.end_seconds) / 2)
         guard model.project == document, !model.dirty else {
-            fputs("Native UI tests failed: moving the slider changed the document\n", stderr); exit(1)
+            fputs("Native UI tests failed: moving the slider changed the document (content: \(model.project != document), dirty: \(model.dirty))\n", stderr); exit(1)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             guard let image = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
