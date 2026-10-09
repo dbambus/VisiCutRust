@@ -1,6 +1,7 @@
 // Protocol port from LibLaserCut LaserToolsTechnicsCutter, LGPL-3.0-or-later.
 // Original driver: Maximilian Gaukler; portions by Thomas Oster.
 // Provenance and deliberate limitations: ../../PROTOCOL.md.
+mod order;
 mod vector;
 
 use crate::{
@@ -354,6 +355,7 @@ fn append_part(
                     );
                 }
             }
+            let paths = order::inner_first(paths);
             out.extend([0x1b, 0x56]); // vector mode
             out.extend([0x1b, 0x45, 0, 0, 0, 0, 0, 0, 0]); // pulse mode off
             out.extend([0x1b, 0x4e, 1]); // colour code red

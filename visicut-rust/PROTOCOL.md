@@ -59,6 +59,16 @@ Wiederholung nach Fehlern.
   skalieren mit Transformationen und viewBox; das Muster beginnt in jedem
   Teilpfad neu und läuft bei geschlossenen Formen über den Startpunkt
   hinweg. Reine Füllformen bleiben durchgehend.
+- Schnittreihenfolge wie VisiCuts Standard „innen zuerst“
+  (`InnerFirstVectorOptimizer`): Offene Pfade, deren Enden ohne Abzweigung
+  aufeinandertreffen (0,9 Pixel bei 500 DPI, Manhattan-Abstand), werden zu
+  einem Pfad verbunden. Danach werden alle Pfade je Schritt stabil nach
+  Begrenzungsrahmen sortiert: unterer Rand aufsteigend, oberer absteigend,
+  rechter aufsteigend, linker absteigend. Ein Pfad, dessen Rahmen in einem
+  anderen liegt, wird also vorher geschnitten; Löcher fallen nicht nach dem
+  Außenumriss heraus. Gleiche Rahmen (z. B. Kreis im Quadrat) werden nicht
+  unterschieden. Außer beim Verbinden werden Pfade nicht umgedreht. Abweichung: Java sortiert
+  mehrere Parametersätze gemeinsam, Rust jeden Parametersatz für sich.
 - Zuordnung wie VisiCuts Mappings: Schritte wählen Objekte einzeln, über
   Bedingungen (Farbe, Linien-/Füllfarbe, Linienstärke in mm mit „=“ oder „≤“,
   Gruppe/Inkscape-Ebene, Typ, ID; jeweils auch negiert) oder als Rest.
