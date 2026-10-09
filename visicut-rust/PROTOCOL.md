@@ -53,6 +53,12 @@ Wiederholung nach Fehlern.
   verwenden normale Kurven. Arc compensation am Gerät wird wie im FAU-Profil
   als eingeschaltet angenommen. Die Zeitschätzung berücksichtigt Beschleunigung
   und Bremsen (`cuttingTimeForPxDistance`).
+  Gestrichelte Konturen (`stroke-dasharray`, `stroke-dashoffset`) werden wie
+  in VisiCut (`DashedShape`) als einzelne Striche geschnitten, etwa für
+  Perforationen. Strichlängen gelten im Koordinatensystem des Pfads und
+  skalieren mit Transformationen und viewBox; das Muster beginnt in jedem
+  Teilpfad neu und läuft bei geschlossenen Formen über den Startpunkt
+  hinweg. Reine Füllformen bleiben durchgehend.
 - Zuordnung wie VisiCuts Mappings: Schritte wählen Objekte einzeln, über
   Bedingungen (Farbe, Linien-/Füllfarbe, Linienstärke in mm mit „=“ oder „≤“,
   Gruppe/Inkscape-Ebene, Typ, ID; jeweils auch negiert) oder als Rest.
