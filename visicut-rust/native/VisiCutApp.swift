@@ -126,7 +126,7 @@ struct PreparedStep: Decodable {
     let passes: Int
     let parameter_sets: Int
 }
-struct ProjectResponse: Decodable { let project: Project; let preview: Preview?; let objects: [SVGObject]? }
+struct ProjectResponse: Decodable { let project: Project; let preview: Preview?; let objects: [SVGObject]?; let warnings: [String]? }
 struct Preview: Decodable { let png: [UInt8] }
 struct OutputJob: Decodable {
     let name: String
@@ -316,6 +316,7 @@ final class AppModel: ObservableObject {
             accept(response, dirty: isSVG)
             projectURL = isSVG ? nil : url
             status = isSVG ? "\(url.lastPathComponent) importiert. Originalmaße übernommen." : "Projekt geöffnet."
+            if let warnings = response.warnings, !warnings.isEmpty { self.error = warnings.joined(separator: "\n") }
         } catch { self.error = error.localizedDescription }
     }
 

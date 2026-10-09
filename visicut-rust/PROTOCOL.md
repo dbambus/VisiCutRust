@@ -86,7 +86,17 @@ Wiederholung nach Fehlern.
   Durchmesser muss 5–1000 mm betragen, das Motiv darf nicht höher als der
   Umfang sein. Vor dem Start „Adjust rotary temp“ am Gerät; die App nennt den
   nötigen Freiraum links und rechts. Am Gerät noch nicht validiert.
-- Externe SVG-Bilder werden nicht geladen; Bilder müssen eingebettet sein.
+- Externe SVG-Bilder (`<image>` mit `href`/`xlink:href` als relativer oder
+  absoluter Dateipfad oder `file://`-URL) werden einmalig beim Import relativ
+  zum Ordner der SVG-Datei aufgelöst und als `data:`-URI eingebettet; das
+  Projekt bleibt so ohne die Bilddateien portabel. Nur diese Attributwerte
+  ändern sich, der übrige SVG-Text bleibt unverändert. Unterstützt werden PNG,
+  JPEG, GIF, WebP und SVG (Format nach Dateiinhalt), je Bild bis 10 MB und
+  insgesamt bis 20 MB SVG-Größe. `http(s)`-Adressen werden nicht abgerufen.
+  Fehlende, zu große oder nicht unterstützte Bilder brechen den Import nicht
+  ab, sondern werden als Hinweis angezeigt und bleiben unverändert verknüpft
+  (also unsichtbar). Bereits gespeicherte Projekte werden nicht nachträglich
+  aufgelöst.
 - Autofokus, Druckluft und Absaugung: Der Java-Treiber enthält dafür nur
   Platzhalter (`setFocus`, `setPurge`, `setVentilation` senden keine Bytes,
   `isAutoFocus` ist nicht implementiert); das LTT-Protokoll dafür ist nicht

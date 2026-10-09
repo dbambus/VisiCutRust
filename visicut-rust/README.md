@@ -82,6 +82,9 @@ lokal nach einem Build für die jeweilige Host-Architektur.
 ## Workflow
 
 1. Eine SVG über **Öffnen** (⌘O) importieren oder **Beispiel** wählen.
+   Verknüpfte Bilddateien (PNG, JPEG, GIF, WebP, SVG) werden dabei relativ zur
+   SVG geladen und in das Projekt eingebettet; Webadressen werden nicht
+   abgerufen, fehlende Bilder werden als Hinweis gemeldet.
 2. Motiv positionieren, skalieren oder auf dem Arbeitsbett zentrieren.
 3. **Material** und **Stärke** aus den nativen Auswahlmenüs wählen.
    Die Bibliothek enthält 31 Materialien und 115 Schnitt-, Gravur-, Markier-
