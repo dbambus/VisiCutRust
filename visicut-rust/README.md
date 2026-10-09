@@ -59,9 +59,8 @@ Der macOS-Download heißt
 Versionen unter 1.0 sowie Versionen mit Suffix werden als Vorabversion markiert.
 Ein manueller Lauf auf einem Branch baut nur Artefakte; auf einem vorhandenen
 Versionstag kann er die Veröffentlichung wiederholen.
-Auf Forks sind die alten Java-Distributionsbuilds weiterhin manuell ausführbar;
-der externe VisiCut-Buildserver und Release-Upload bleiben auf das
-Upstream-Repository beschränkt.
+Weitere Workflows gibt es nicht: Die alten Java-Distributionsbuilds und der
+Auslöser für den externen VisiCut-Buildserver wurden entfernt.
 
 Für lokale portable Builds aus `visicut-rust`:
 
