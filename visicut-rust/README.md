@@ -88,6 +88,16 @@ lokal nach einem Build für die jeweilige Host-Architektur.
    Rasterbilder (PNG, JPEG, BMP, GIF) erhalten ihre Größe aus der
    Auflösung in der Datei, sonst 72 DPI wie in VisiCut; G-Code (`.nc`,
    `.gcode`) wird als roter Pfad an seiner Position in mm übernommen.
+   **PDF** wird ohne Zusatzprogramme direkt gelesen (Seite 1; bei mehreren
+   Seiten erscheint ein Hinweis). Pfade bleiben Vektoren mit ihren Füll- und
+   Linienfarben und Linienstärken, Text wird als Glyphenkontur übernommen,
+   Rasterbilder werden eingebettet; die Größe stammt aus der Crop-/MediaBox
+   (1 pt = 25,4/72 mm). Haarlinien (Linienstärke 0) erhalten 0,1 mm.
+   Verschlüsselte PDFs werden mit Hinweis abgelehnt. **EPS/PS** wird über ein
+   installiertes Ghostscript (`gs`, unter Windows `gswin64c`) in PDF
+   umgewandelt und dann genauso importiert; die Größe folgt der BoundingBox.
+   Ohne Ghostscript erscheint ein Hinweis, die Datei als SVG oder PDF zu
+   speichern.
 2. Motiv positionieren, skalieren oder auf dem Arbeitsbett zentrieren.
 3. **Material** und **Stärke** aus den nativen Auswahlmenüs wählen.
    Die Bibliothek enthält 31 Materialien und 115 Schnitt-, Gravur-, Markier-
