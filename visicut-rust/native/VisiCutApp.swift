@@ -126,7 +126,7 @@ struct PreparedStep: Decodable {
     let passes: Int
     let parameter_sets: Int
 }
-struct ProjectResponse: Decodable { let project: Project; let preview: Preview?; let objects: [SVGObject]? }
+struct ProjectResponse: Decodable { let project: Project; let preview: Preview?; let objects: [SVGObject]?; let warnings: [String]? }
 struct Preview: Decodable { let png: [UInt8] }
 struct OutputJob: Decodable {
     let name: String
@@ -302,8 +302,9 @@ final class AppModel: ObservableObject {
     func chooseFile() {
         guard !busy else { return }
         let panel = NSOpenPanel()
-        panel.title = "SVG oder VisiCutRust-Projekt öffnen"
-        panel.allowedContentTypes = [.svg, .json, UTType(filenameExtension: "vcr") ?? .data]
+        panel.title = "Grafik oder VisiCutRust-Projekt öffnen"
+        let graphics = ["svg", "psvg", "dxf", "eps", "ps", "pdf", "png", "jpg", "jpeg", "bmp", "gif", "nc", "gcode", "plf", "ls"]
+        panel.allowedContentTypes = (graphics + ["vcr"]).compactMap { UTType(filenameExtension: $0) } + [.json]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url { open(url) }
     }
@@ -311,11 +312,12 @@ final class AppModel: ObservableObject {
     func open(_ url: URL) {
         guard !busy, canDiscard() else { return }
         do {
-            let isSVG = url.pathExtension.lowercased() == "svg"
+            let isSVG = !["vcr", "json"].contains(url.pathExtension.lowercased())
             let response: ProjectResponse = try RustCore.decode(isSVG ? "import" : "load", project: project, path: url.path)
             accept(response, dirty: isSVG)
             projectURL = isSVG ? nil : url
             status = isSVG ? "\(url.lastPathComponent) importiert. Originalmaße übernommen." : "Projekt geöffnet."
+            if let warnings = response.warnings, !warnings.isEmpty { self.error = warnings.joined(separator: "\n") }
         } catch { self.error = error.localizedDescription }
     }
 

@@ -82,6 +82,25 @@ lokal nach einem Build für die jeweilige Host-Architektur.
 ## Workflow
 
 1. Eine SVG über **Öffnen** (⌘O) importieren oder **Beispiel** wählen.
+   Verknüpfte Bilddateien (PNG, JPEG, GIF, WebP, SVG) werden dabei relativ zur
+   SVG geladen und in das Projekt eingebettet; Webadressen werden nicht
+   abgerufen, fehlende Bilder werden als Hinweis gemeldet.
+   Rasterbilder (PNG, JPEG, BMP, GIF) erhalten ihre Größe aus der
+   Auflösung in der Datei, sonst 72 DPI wie in VisiCut; G-Code (`.nc`,
+   `.gcode`) wird als roter Pfad an seiner Position in mm übernommen.
+   **PDF** wird ohne Zusatzprogramme direkt gelesen (Seite 1; bei mehreren
+   Seiten erscheint ein Hinweis). Pfade bleiben Vektoren mit ihren Füll- und
+   Linienfarben und Linienstärken, Text wird als Glyphenkontur übernommen,
+   Rasterbilder werden eingebettet; die Größe stammt aus der Crop-/MediaBox
+   (1 pt = 25,4/72 mm). Haarlinien (Linienstärke 0) erhalten 0,1 mm.
+   Verschlüsselte PDFs werden mit Hinweis abgelehnt. **EPS/PS** wird über ein
+   installiertes Ghostscript (`gs`, unter Windows `gswin64c`) in PDF
+   umgewandelt und dann genauso importiert; die Größe folgt der BoundingBox.
+   Ohne Ghostscript erscheint ein Hinweis, die Datei als SVG oder PDF zu
+   speichern.
+   DXF-Dateien (ASCII oder binär) werden in Millimetern übernommen
+   (`$INSUNITS`, ohne Angabe Millimeter); DXF-Ebenen und -Farben bleiben als
+   Ebenen und Linienfarben für die Zuordnung erhalten.
 2. Motiv positionieren, skalieren oder auf dem Arbeitsbett zentrieren.
 3. **Material** und **Stärke** aus den nativen Auswahlmenüs wählen.
    Die Bibliothek enthält 31 Materialien und 115 Schnitt-, Gravur-, Markier-
@@ -113,12 +132,17 @@ lokal nach einem Build für die jeweilige Host-Architektur.
    Konturen mit eigenen Parametern ab; ohne Markierprofil startet die Leistung
    bei 0 % und muss vor der Vorbereitung eingestellt werden.
    **Schneiden** bearbeitet Pfadkonturen als Tangentialkurven und Kreisbefehle
-   wie der Java-Treiber. **Gravieren** rastert mit 500 DPI und wählbarem
-   Verfahren (Standard „Halbton aufgehellt“ wie im FAU-Profil, außerdem
+   wie der Java-Treiber, innere Konturen vor den äußeren. **Gravieren**
+   rastert mit 500 DPI und wählbarem Verfahren (Standard „Halbton
+   aufgehellt“ wie im FAU-Profil, außerdem
    Floyd-Steinberg, Halbton, Geordnet, Mittelwert, Raster, Zufall, Schwellwert),
    Helligkeit, Invertierung, bidirektional oder einseitig und von oben oder
    unten. **3D-Gravur** steuert die Leistung je Pixel nach der Helligkeit.
-   Text vor dem Schneiden in Pfade umwandeln.
+   Text wird beim Schneiden und Markieren entlang der Glyphenumrisse
+   bearbeitet (wie in Java). Schriften kommen vom System; fehlen sie, greifen
+   die mit egui gelieferten Schriften Ubuntu Light und Hack (auch für
+   Vorschau und Gravur). Zeichen ohne passende Schrift werden gemeldet statt
+   verworfen.
 6. **Vorschau & Zeit** (⇧⌘P) berechnet den Auftrag im Hintergrund. Die Vorschau
    zeigt tatsächliche Schnittkonturen rot und Gravurflächen blau; ignorierte
    Objekte fehlen. Markierkonturen erscheinen violett. Der **Zeitslider**
@@ -166,7 +190,15 @@ wird das neue Format verwendet; die ursprüngliche Datei wird beim Öffnen
 nicht verändert.
 Entwürfe können auch ohne Motiv oder mit einer noch unpassenden Position
 gesichert werden; das Senden prüft strengere Bedingungen.
-Bestehende `.plf`-Dateien lassen sich noch nicht öffnen.
+VisiCut-Projekte (`.plf`) werden importiert: Alle Teile erscheinen als
+benannte Gruppen an ihrer gespeicherten Position und Größe auf dem
+Arbeitsbett. Zuordnungen und Laser-Einstellungen der PLF-Datei werden nicht
+übernommen (Hinweis beim Öffnen); sie werden in VisiCutRust neu gewählt.
+Parametrische SVG (`.parametric.svg`, `.psvg`) werden mit den Standardwerten
+ihrer Parameter bzw. den in der PLF gespeicherten Werten erzeugt; der Hinweis
+nennt die verwendeten Werte. LaserScript-Dateien (`.ls`) laufen in einer
+abgeschotteten JavaScript-Umgebung ohne Datei- und Netzzugriff mit
+Zeitlimit (5 s); `prompt`-Abfragen erhalten ihren Vorgabewert.
 
 ## Lasercutter, Drehachse und Kamera
 

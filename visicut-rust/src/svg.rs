@@ -1,4 +1,6 @@
+use resvg::usvg::fontdb;
 use resvg::{tiny_skia, usvg};
+use std::sync::{Arc, OnceLock};
 
 pub struct Preview {
     pub width_mm: f32,
@@ -6,20 +8,101 @@ pub struct Preview {
     pub image: eframe::egui::ColorImage,
 }
 
-pub fn render(source: &str) -> Result<Preview, String> {
-    if source.len() > 20 * 1024 * 1024 {
-        return Err("SVG ist größer als 20 MB".into());
-    }
+/// System fonts plus the fonts bundled with egui (Ubuntu Light, Hack), loaded once.
+///
+/// Preview, engraving, cutting and the mapping all share this database so text
+/// is laid out identically everywhere. The bundled fonts guarantee that the
+/// generic families (`serif`, `sans-serif`, …) resolve even on machines without
+/// any system fonts, e.g. minimal CI images.
+pub fn fonts() -> Arc<fontdb::Database> {
+    static FONTS: OnceLock<Arc<fontdb::Database>> = OnceLock::new();
+    FONTS
+        .get_or_init(|| {
+            let mut db = fontdb::Database::new();
+            db.load_system_fonts();
+            let mut family = |data: &'static [u8]| {
+                let ids = db.load_font_source(fontdb::Source::Binary(Arc::new(data)));
+                ids.first()
+                    .and_then(|id| db.face(*id))
+                    .and_then(|face| face.families.first())
+                    .map(|(name, _)| name.clone())
+            };
+            let sans = family(epaint_default_fonts::UBUNTU_LIGHT).unwrap_or_default();
+            let mono = family(epaint_default_fonts::HACK_REGULAR).unwrap_or_default();
+            let pick = |db: &fontdb::Database, candidates: &[&str], fallback: &str| {
+                candidates
+                    .iter()
+                    .find(|name| {
+                        db.query(&fontdb::Query {
+                            families: &[fontdb::Family::Name(name)],
+                            ..Default::default()
+                        })
+                        .is_some()
+                    })
+                    .map_or(fallback.to_string(), |name| name.to_string())
+            };
+            let sans = pick(
+                &db,
+                &[
+                    "Arial",
+                    "Helvetica",
+                    "Liberation Sans",
+                    "DejaVu Sans",
+                    "Noto Sans",
+                ],
+                &sans,
+            );
+            let serif = pick(
+                &db,
+                &[
+                    "Times New Roman",
+                    "Times",
+                    "Liberation Serif",
+                    "DejaVu Serif",
+                    "Noto Serif",
+                ],
+                &sans,
+            );
+            let mono = pick(
+                &db,
+                &[
+                    "Courier New",
+                    "Courier",
+                    "Liberation Mono",
+                    "DejaVu Sans Mono",
+                ],
+                &mono,
+            );
+            let cursive = pick(&db, &["Comic Sans MS"], &sans);
+            let fantasy = pick(&db, &["Impact"], &sans);
+            db.set_sans_serif_family(sans);
+            db.set_serif_family(serif);
+            db.set_monospace_family(mono);
+            db.set_cursive_family(cursive);
+            db.set_fantasy_family(fantasy);
+            Arc::new(db)
+        })
+        .clone()
+}
+
+/// usvg options shared by preview, engraving, cutting and the mapping.
+pub fn options() -> usvg::Options<'static> {
     // Embedded projects must remain portable: external resources are not resolved.
-    let mut options = usvg::Options {
+    usvg::Options {
         image_href_resolver: usvg::ImageHrefResolver {
             resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
             resolve_string: Box::new(|_, _| None),
         },
+        fontdb: fonts(),
         ..Default::default()
-    };
-    options.fontdb_mut().load_system_fonts();
-    let tree = usvg::Tree::from_str(source, &options)
+    }
+}
+
+pub fn render(source: &str) -> Result<Preview, String> {
+    if source.len() > 20 * 1024 * 1024 {
+        return Err("SVG ist größer als 20 MB".into());
+    }
+    let tree = usvg::Tree::from_str(source, &options())
         .map_err(|e| format!("SVG konnte nicht gelesen werden: {e}"))?;
     let size = tree.size();
     let scale = (1600.0 / size.width().max(size.height())).min(2.0);

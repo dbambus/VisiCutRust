@@ -1,6 +1,7 @@
 // Protocol port from LibLaserCut LaserToolsTechnicsCutter, LGPL-3.0-or-later.
 // Original driver: Maximilian Gaukler; portions by Thomas Oster.
 // Provenance and deliberate limitations: ../../PROTOCOL.md.
+mod order;
 mod vector;
 
 use crate::{
@@ -354,6 +355,7 @@ fn append_part(
                     );
                 }
             }
+            let paths = order::inner_first(paths);
             out.extend([0x1b, 0x56]); // vector mode
             out.extend([0x1b, 0x45, 0, 0, 0, 0, 0, 0, 0]); // pulse mode off
             out.extend([0x1b, 0x4e, 1]); // colour code red
@@ -643,10 +645,8 @@ fn render_raster(project: &Project) -> Result<tiny_skia::Pixmap, String> {
     if width as u64 * height as u64 > 40_000_000 {
         return Err("Gravur ist größer als 40 Millionen Pixel; Motiv verkleinern".into());
     }
-    let mut options = usvg::Options::default();
-    options.image_href_resolver.resolve_string = Box::new(|_, _| None);
-    options.fontdb_mut().load_system_fonts();
-    let tree = usvg::Tree::from_str(&project.svg, &options).map_err(|e| e.to_string())?;
+    let tree =
+        usvg::Tree::from_str(&project.svg, &crate::svg::options()).map_err(|e| e.to_string())?;
     let mut pixmap =
         tiny_skia::Pixmap::new(width, height).ok_or("Gravur konnte nicht gerendert werden")?;
     pixmap.fill(tiny_skia::Color::WHITE);
