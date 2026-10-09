@@ -32,6 +32,11 @@
 *.AppImage
 squashfs-root/
 
+# VisiCutRust desktop applications
+/visicut-rust/target/
+/visicut-rust/dist/
+.DS_Store
+
 # zipped bundles
 *.zip
 *.tar*

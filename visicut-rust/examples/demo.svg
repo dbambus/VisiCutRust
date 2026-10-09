@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60">
+  <rect id="Rahmen" x="1" y="1" width="98" height="58" rx="6" fill="none" stroke="#ef7141" stroke-width="0.5"/>
+  <circle id="Gravurkreis" cx="25" cy="30" r="16" fill="#222222" stroke="#222222" stroke-width="0.5"/>
+  <path id="Dreieck" d="M55 15 L85 30 L55 45 Z" fill="none" stroke="#438ad1" stroke-width="0.5"/>
+</svg>

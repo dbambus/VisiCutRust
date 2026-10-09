@@ -1,0 +1,780 @@
+{
+  "source": "fau-fablab/visicut-settings",
+  "device": "LTT iLaser 4000",
+  "materials": [
+    {
+      "id": "Acryl",
+      "name": "Acryl",
+      "profiles": [
+        {
+          "thickness_mm": 1.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 50.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/1.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 1.0,
+          "operation": "Engrave",
+          "power_percent": 30.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/1.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 1.5,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 15.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/1.5mm/cut.xml"
+        },
+        {
+          "thickness_mm": 1.5,
+          "operation": "Engrave",
+          "power_percent": 30.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/1.5mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 2.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 12.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/2.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 2.0,
+          "operation": "Engrave",
+          "power_percent": 30.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/2.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 2.5,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 10.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/2.5mm/cut.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 9.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/3.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Engrave",
+          "power_percent": 20.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/3.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 8.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/4.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Engrave",
+          "power_percent": 30.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/4.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 5.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 5.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/5.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 5.0,
+          "operation": "Engrave",
+          "power_percent": 20.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/5.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 6.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 4.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/6.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 6.0,
+          "operation": "Engrave",
+          "power_percent": 60.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/6.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 8.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 2.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/8.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 8.0,
+          "operation": "Engrave",
+          "power_percent": 30.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/8.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 10.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 1.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/10.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Aluminium_32_Cermark_32_LMM-6000_32_2",
+      "name": "Aluminium Cermark LMM-6000 2",
+      "profiles": [
+        {
+          "thickness_mm": 0.0,
+          "operation": "Engrave",
+          "power_percent": 100.0,
+          "speed_percent": 5.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Aluminium_32_Cermark_32_LMM-6000_32_2/0.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Balsaholz",
+      "name": "Balsaholz",
+      "profiles": [
+        {
+          "thickness_mm": 1.0,
+          "operation": "Cut",
+          "power_percent": 24.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Balsaholz/1.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 1.0,
+          "operation": "Engrave",
+          "power_percent": 18.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Balsaholz/1.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "FAU-Card",
+      "name": "FAU-Card",
+      "profiles": [
+        {
+          "thickness_mm": 1.0,
+          "operation": "Engrave",
+          "power_percent": 6.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/FAU-Card/1.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Finnpappe",
+      "name": "Finnpappe",
+      "profiles": [
+        {
+          "thickness_mm": 1.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 65.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/1.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 1.5,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 40.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/1.5mm/cut.xml"
+        },
+        {
+          "thickness_mm": 2.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 35.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/2.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Fotokarton",
+      "name": "Fotokarton",
+      "profiles": [
+        {
+          "thickness_mm": 0.5,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Fotokarton/0.5mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Graupappe",
+      "name": "Graupappe",
+      "profiles": [
+        {
+          "thickness_mm": 1.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 60.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Graupappe/1.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 2.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 30.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Graupappe/2.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "HDF",
+      "name": "HDF",
+      "profiles": [
+        {
+          "thickness_mm": 2.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 15.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/2.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 9.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/3.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Engrave",
+          "power_percent": 80.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/3.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 9.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/4.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Engrave",
+          "power_percent": 20.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/4.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 5.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 5.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/5.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 5.0,
+          "operation": "Engrave",
+          "power_percent": 40.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/5.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 6.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 6.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/6.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 10.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 2.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/10.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 10.0,
+          "operation": "Engrave",
+          "power_percent": 100.0,
+          "speed_percent": 2.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/10.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Holz_32_Buche_32_massiv",
+      "name": "Holz Buche massiv",
+      "profiles": [
+        {
+          "thickness_mm": 4.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 10.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Buche_32_massiv/4.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Engrave",
+          "power_percent": 40.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Buche_32_massiv/4.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Holz_32_Furnier",
+      "name": "Holz Furnier",
+      "profiles": [
+        {
+          "thickness_mm": 0.5,
+          "operation": "Cut",
+          "power_percent": 70.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Furnier/0.5mm/cut.xml"
+        },
+        {
+          "thickness_mm": 1.5,
+          "operation": "Cut",
+          "power_percent": 90.0,
+          "speed_percent": 10.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Furnier/1.5mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Holz_32_Kiefer",
+      "name": "Holz Kiefer",
+      "profiles": [
+        {
+          "thickness_mm": 3.0,
+          "operation": "Engrave",
+          "power_percent": 100.0,
+          "speed_percent": 50.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Kiefer/3.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 18.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 1.5,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Kiefer/18.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Holz_32_Nussbaum",
+      "name": "Holz Nussbaum",
+      "profiles": [
+        {
+          "thickness_mm": 2.4,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 20.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Nussbaum/2.4mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Holz_32_Pappel",
+      "name": "Holz Pappel",
+      "profiles": [
+        {
+          "thickness_mm": 3.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 35.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Pappel/3.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Engrave",
+          "power_percent": 25.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Pappel/3.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 15.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Pappel/4.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Engrave",
+          "power_percent": 40.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Pappel/4.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Leimholz_32__40_Fichte_41_",
+      "name": "Leimholz (Fichte)",
+      "profiles": [
+        {
+          "thickness_mm": 18.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 1.9,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Leimholz_32__40_Fichte_41_/18.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Metall_32_Cermark_32_LMM-6000",
+      "name": "Metall Cermark LMM-6000",
+      "profiles": [
+        {
+          "thickness_mm": 0.0,
+          "operation": "Engrave",
+          "power_percent": 100.0,
+          "speed_percent": 10.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Metall_32_Cermark_32_LMM-6000/0.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Metall_32_pulverlackiert",
+      "name": "Metall pulverlackiert",
+      "profiles": [
+        {
+          "thickness_mm": 0.0,
+          "operation": "Engrave",
+          "power_percent": 25.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Metall_32_pulverlackiert/0.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Moosgummi",
+      "name": "Moosgummi",
+      "profiles": [
+        {
+          "thickness_mm": 2.0,
+          "operation": "Cut",
+          "power_percent": 80.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Moosgummi/2.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Cut",
+          "power_percent": 90.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Moosgummi/3.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Multiplex_32_lackiert_32_gravieren",
+      "name": "Multiplex lackiert gravieren",
+      "profiles": [
+        {
+          "thickness_mm": 12.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 1.2,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Multiplex_32_lackiert_32_gravieren/12.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Overheadfolie",
+      "name": "Overheadfolie",
+      "profiles": [
+        {
+          "thickness_mm": 0.0,
+          "operation": "Cut",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Overheadfolie/0.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 0.0,
+          "operation": "Engrave",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Overheadfolie/0.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Papier_32_250g",
+      "name": "Papier 250g",
+      "profiles": [
+        {
+          "thickness_mm": 0.0,
+          "operation": "Cut",
+          "power_percent": 35.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Papier_32_250g/0.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Papier_32_80g",
+      "name": "Papier 80g",
+      "profiles": [
+        {
+          "thickness_mm": 0.0,
+          "operation": "Cut",
+          "power_percent": 15.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Papier_32_80g/0.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 0.0,
+          "operation": "Engrave",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Papier_32_80g/0.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "PE",
+      "name": "PE",
+      "profiles": [
+        {
+          "thickness_mm": 1.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 6.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/PE/1.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 1.0,
+          "operation": "Engrave",
+          "power_percent": 100.0,
+          "speed_percent": 6.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/PE/1.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "POM",
+      "name": "POM",
+      "profiles": [
+        {
+          "thickness_mm": 3.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 5.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/POM/3.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Engrave",
+          "power_percent": 30.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/POM/3.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Schiefer",
+      "name": "Schiefer",
+      "profiles": [
+        {
+          "thickness_mm": 5.0,
+          "operation": "Engrave",
+          "power_percent": 25.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Schiefer/5.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Sperrholz_32_Birke",
+      "name": "Sperrholz Birke",
+      "profiles": [
+        {
+          "thickness_mm": 4.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 12.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Birke/4.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Engrave",
+          "power_percent": 50.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Birke/4.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 18.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 1.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Birke/18.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Sperrholz_32_Buche",
+      "name": "Sperrholz Buche",
+      "profiles": [
+        {
+          "thickness_mm": 3.0,
+          "operation": "Cut",
+          "power_percent": 75.0,
+          "speed_percent": 10.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Buche/3.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 6.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 4.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Buche/6.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Sperrholz_32_Furnier",
+      "name": "Sperrholz Furnier",
+      "profiles": [
+        {
+          "thickness_mm": 4.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 15.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Furnier/4.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Sperrholz_32_Pappel",
+      "name": "Sperrholz Pappel",
+      "profiles": [
+        {
+          "thickness_mm": 4.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 12.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/4.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Engrave",
+          "power_percent": 80.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/4.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 6.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 9.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/6.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 6.0,
+          "operation": "Engrave",
+          "power_percent": 80.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/6.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 8.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 6.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/8.0mm/cut.xml"
+        }
+      ]
+    },
+    {
+      "id": "Stempelgummi",
+      "name": "Stempelgummi",
+      "profiles": [
+        {
+          "thickness_mm": 2.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 10.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Stempelgummi/2.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 2.0,
+          "operation": "Engrave",
+          "power_percent": 100.0,
+          "speed_percent": 20.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Stempelgummi/2.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Thermopapier_32_Kassenzettel",
+      "name": "Thermopapier Kassenzettel",
+      "profiles": [
+        {
+          "thickness_mm": 0.0,
+          "operation": "Cut",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Thermopapier_32_Kassenzettel/0.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 0.0,
+          "operation": "Engrave",
+          "power_percent": 3.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Thermopapier_32_Kassenzettel/0.0mm/engrave.xml"
+        }
+      ]
+    },
+    {
+      "id": "Wellpappe",
+      "name": "Wellpappe",
+      "profiles": [
+        {
+          "thickness_mm": 2.0,
+          "operation": "Cut",
+          "power_percent": 40.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Wellpappe/2.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 2.0,
+          "operation": "Engrave",
+          "power_percent": 0.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Wellpappe/2.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 20.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Wellpappe/3.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 6.0,
+          "operation": "Cut",
+          "power_percent": 100.0,
+          "speed_percent": 6.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Wellpappe/6.0mm/cut.xml"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+[package]
+name = "visicut-rust"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.88"
+license = "LGPL-3.0-or-later"
+repository = "https://github.com/dbambus/VisiCutRust"
+description = "VisiCutRust laser job preparation for Windows, Linux, and macOS"
+
+[lib]
+name = "visicut_core"
+crate-type = ["staticlib", "rlib"]
+
+[features]
+screenshot = ["eframe/__screenshot"]
+
+[dependencies]
+eframe = { version = "=0.33.3", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+resvg = "0.45"
+rfd = "0.15"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = "thin"
+strip = true

@@ -1,0 +1,191 @@
+# VisiCutRust für Windows, Linux und macOS
+
+Native macOS-Oberfläche mit AppKit und SwiftUI, SVG-Verarbeitung und
+LTT-Treiber in Rust. Der Java-Quellbaum bleibt separat.
+Erster Ziel-Lasercutter: LTT iLaser 4000 des FAU FabLabs.
+
+## Starten
+
+Die lokal gebaute App befindet sich in `dist/VisiCutRust.app`.
+Version 0.3.0 benötigt macOS 14 oder neuer, weder Java noch Maven.
+Dieser Build verwendet die Architektur
+des Build-Macs; Apple Silicon und Intel müssen separat gebaut werden.
+
+Für einen Build aus dem Quellcode werden Rust 1.90 und die Xcode Command
+Line Tools benötigt:
+
+```sh
+cd visicut-rust
+bash scripts/bundle-macos.sh
+open 'dist/VisiCutRust.app'
+```
+
+Das mitgelieferte `rust-toolchain.toml` wählt Rust 1.90.
+
+```sh
+cargo test --lib --locked
+```
+
+Das Bundle ist lokal ad hoc signiert, nicht für externe Verteilung
+notarisiert.
+
+## Windows, Linux und GitHub Actions
+
+Der Rust-Kern und die egui-Entwicklungsoberfläche bauen auch auf Windows und
+Linux. Die vollständige AppKit-/SwiftUI-Oberfläche mit Objektzuordnung und
+Zeitslider ist macOS-spezifisch. Windows/Linux verwenden den gemeinsamen
+SVG-/LTT-Kern und können gespeicherte `.vcr`-Projekte öffnen, haben aber noch
+nicht dieselben Bedienfunktionen.
+
+Der Workflow **VisiCutRust releases** baut vier native Ziele auf GitHub-gehosteten Runnern:
+
+| Ziel | Oberfläche | Download-Artefakt |
+| --- | --- | --- |
+| Windows x64 / MSVC | egui | ZIP mit EXE |
+| Linux x64 / Ubuntu 24.04 | egui, X11/Wayland | tar.gz mit ausführbarer Datei |
+| macOS Intel | native AppKit/SwiftUI | ZIP mit `.app` |
+| macOS Apple Silicon | native AppKit/SwiftUI | ZIP mit `.app` |
+
+Bei Pull Requests und Änderungen an `master`/`main` laufen Rust-Tests auf
+allen vier Zielen. Linux prüft zusätzlich Formatierung und Clippy; beide
+Mac-Ziele bauen und signieren das Bundle und testen die native Oberfläche
+einschließlich Zeitslider. TCP-Tests verwenden ausschließlich localhost.
+Die Downloads und Mac-Testbilder liegen unter **Actions → VisiCutRust releases →
+Artifacts** (14 Tage Aufbewahrung). Tags im Format `v<Version>` veröffentlichen
+nach erfolgreichen Builds auf allen vier Zielen automatisch eine
+[GitHub Release](https://github.com/dbambus/VisiCutRust/releases) mit vier
+Archiven und `SHA256SUMS.txt`. Tag und Cargo-Version müssen übereinstimmen.
+Versionen unter 1.0 sowie Versionen mit Suffix werden als Vorabversion markiert.
+Ein manueller Lauf auf einem Branch baut nur Artefakte; auf einem vorhandenen
+Versionstag kann er die Veröffentlichung wiederholen.
+Auf Forks sind die alten Java-Distributionsbuilds weiterhin manuell ausführbar;
+der externe VisiCut-Buildserver und Release-Upload bleiben auf das
+Upstream-Repository beschränkt.
+
+Für lokale portable Builds aus `visicut-rust`:
+
+```sh
+cargo build --locked --release --bin visicut-rust
+cargo test --locked --all-targets
+```
+
+Linux benötigt eine grafische Sitzung, OpenGL/EGL, libxkbcommon und einen
+Desktop-Portal-Dienst für Dateidialoge. Der CI-Build setzt Ubuntu 24.04 oder
+eine kompatible glibc-Laufzeit voraus. Die Pakete enthalten Hinweise zum Start
+und zum Funktionsumfang. `scripts/package-ci.py` erstellt dieselben Archive
+lokal nach einem Build für die jeweilige Host-Architektur.
+
+## Workflow
+
+1. Eine SVG über **Öffnen** (⌘O) importieren oder **Beispiel** wählen.
+2. Motiv positionieren, skalieren oder auf dem Arbeitsbett zentrieren.
+3. **Material** und **Stärke** aus den nativen Auswahlmenüs wählen.
+   Die Bibliothek enthält 31 Materialien und 84 Schnitt-/Gravurprofile
+   aus den öffentlichen FAU-LTT-Einstellungen. **Profil übernehmen**
+   setzt Leistung und Geschwindigkeit für die gewählte Kombination.
+   Beide Werte werden in Prozent angezeigt und eingegeben. Geschwindigkeit
+   wird direkt als LTT-Prozentwert übertragen (zulässig: 0,1–100 %).
+   Bei fehlendem oder deaktiviertem Profil bleiben die Parameter manuell.
+   **Eigenes Material …** erlaubt eine eigene Bezeichnung und Stärke.
+4. Unter **Objektzuordnung → Objekte einzeln zuweisen** jedem SVG-Objekt
+   **Schneiden** (rot), **Gravieren** (blau), **Markieren** (violett) oder **Ignorieren** zuweisen. Die Liste zeigt
+   Objektnummer, SVG-ID bzw. Bezeichnung und direkt gesetzte Farbe.
+   Gruppen bleiben mit ihren Transformationen erhalten; Text, Bilder und
+   SVG-Instanzen (`use`) zählen jeweils als ein Objekt.
+   Ohne Einzelzuordnung gilt das gewählte Verfahren für das gesamte Motiv.
+5. Leistung, Geschwindigkeit und Durchgänge getrennt je Verfahren einstellen.
+   Vorhandene FAU-Profile lassen sich übernehmen. **Markieren** fährt Konturen
+   mit eigenen Parametern ab; ohne Markierprofil startet die Leistung bei 0 %
+   und muss vor der Vorbereitung eingestellt werden.
+   **Schneiden** bearbeitet Pfadkonturen, **Gravieren** rastert die ausgewählten
+   Objekte in Schwarz/Weiß (500 DPI, Luminanzschwelle 128). Helle Farben können
+   dabei entfallen. Text vor dem Schneiden in Pfade umwandeln.
+6. **Vorschau & Zeit** (⇧⌘P) berechnet den Auftrag im Hintergrund. Die Vorschau
+   zeigt tatsächliche Schnittkonturen rot und Gravurflächen blau; ignorierte
+   Objekte fehlen. Markierkonturen erscheinen violett. Der **Zeitslider**
+   zeigt den Ablauf mit Laserkopfposition, Leerfahrten, Rasterzeilen und
+   Durchgängen. **Abspielen/Pause**, Anfang/Ende und **1× bis 100×** erlauben
+   die Simulation. Beim Verschieben pausiert die Wiedergabe. Bereits
+   bearbeitete Bereiche sind kräftig, geplante Bereiche blass dargestellt.
+   Angezeigt werden die geschätzte Gesamtdauer, Dauer und
+   Parameter je Schritt sowie die Dateigröße. Änderungen verwerfen die alte
+   Vorschau und erfordern eine neue Berechnung.
+7. Im Vorschaudialog **An Lasercutter senden …** wählen oder LTT exportieren.
+   Pro aktivem Verfahren entsteht **ein eigener Auftrag**, maximal drei:
+   **Engrav_… → Mark_… → Cut_…**. Diese Präfixe stehen auch im Gerätenamen
+   (maximal 15 ASCII-Zeichen). Jeder Auftrag erhält eine eigene TCP-Verbindung
+   und muss am Gerät separat gestartet werden. Es gibt keinen Autostart.
+   Bei einem Fehler wird gestoppt und die App nennt bereits übertragene
+   Aufträge; es gibt keine automatische Wiederholung. Beim Export mehrerer
+   Aufträge wird ein Zielordner für die einzelnen `.ltt`-Dateien gewählt.
+8. Mit ⌘S das `.vcr`-Projekt inklusive SVG, Objektzuordnungen und aller
+   Parametersätze speichern.
+
+Zum Ausprobieren im Beispiel **Rahmen → Schneiden**, **Gravurkreis → Gravieren**
+und **Dreieck → Markieren** wählen; Markierparameter passend zum Material setzen.
+
+Die Dauer ist eine Schätzung aus den erzeugten, quantisierten Fahrwegen,
+Geschwindigkeit und Durchgängen. Bei Gravur zählen Rasterzeilen, Overscan,
+Rückfahrten und 0,1 s Zusatzzeit je Zeile dazu. Nominalwerte sind 338,677 mm/s
+für Schnitt und der Faktor 6,4 für Gravur. Beschleunigung, Geräteeinstellungen,
+Übertragung und Bedienzeiten sind nicht vollständig modelliert; die Schätzung
+ist noch nicht am Gerät kalibriert. Die Simulation ist eine Vorschau ohne
+Geräteverbindung und keine Live-Anzeige eines laufenden Lasers.
+
+Hostname ist `lasercutter2`, Port `9100`. Der Mac muss den Namen im
+FabLab-Netz auflösen können; alternativ eine vom FabLab bestätigte IP
+eintragen. Die Übertragung erfordert eine ausdrückliche Bestätigung in
+der App und startet den Laser nicht automatisch.
+
+Das Projektformat ist ein versioniertes JSON mit eingebetteter SVG.
+Material, Stärke, Verfahren, Objektzuordnungen und Parameter werden mitgespeichert.
+Neue Projekte verwenden Formatversion 2 mit `speed_percent`.
+Projekte aus Version 0.1/0.2 mit `speed_mm_s` werden beim Öffnen entsprechend
+dem gespeicherten Verfahren in Prozent umgerechnet. Beim nächsten Sichern
+wird das neue Format verwendet; die ursprüngliche Datei wird beim Öffnen
+nicht verändert.
+Entwürfe können auch ohne Motiv oder mit einer noch unpassenden Position
+gesichert werden; das Senden prüft strengere Bedingungen.
+Bestehende `.plf`-Dateien lassen sich noch nicht öffnen.
+
+Netzwerkparameter stehen unter **VisiCut → Einstellungen …** (⌘,).
+Die native Menüleiste bietet Ablage, Bearbeiten, Darstellung und Job.
+Die Oberfläche verwendet Systemschrift, Systemfarben, native Werkzeugleiste,
+Systemdialoge und automatische Hell-/Dunkel-Darstellung.
+
+## Entwicklung und UI-Test
+
+`src/lib.rs` baut den Rust-Kern als statische Bibliothek.
+`native/VisiCutApp.swift` ist die native Oberfläche; `native/JobSimulation.swift`
+implementiert Zeitslider und Wiedergabe. Die zustandslose
+C-Schnittstelle in `src/bridge.rs` transportiert JSON und gibt jede
+Antwort mit `visicut_free` wieder frei. Das Bundle enthält den Rust-Kern;
+es werden keine zusätzlichen Runtime-Dateien benötigt.
+
+Der frühere egui-Prototyp bleibt für Entwicklung mit `cargo run` verfügbar;
+er ist nicht die Oberfläche des ausgelieferten App-Bundles.
+
+```sh
+'dist/VisiCutRust.app/Contents/MacOS/visicut-rust' --ui-test
+```
+
+Der UI-Test prüft den nativen Material-Control über Accessibility,
+Material-/Stärken-/Verfahrenswechsel, Profilübernahme, Skalierung,
+natives Speichern mit Rust-Laden und LTT-Export. Außerdem prüft er gemischte
+Objektzuordnungen, getrennte Parameter, Vorschau, Zeitschätzung, erneutes Laden
+und die automatische Ungültigkeit alter Vorschauen. Abschließend öffnet er
+die Auftragsvorschau über die reguläre asynchrone Vorbereitung. Der Test
+bewegt den echten nativen Slider vorwärts/rückwärts und prüft Interpolation,
+Durchgangswechsel, Ende der Wiedergabe sowie drei getrennte Aufträge.
+Rust-Tests prüfen drei unabhängige TCP-Verbindungen ausschließlich lokal. Er sendet keinen
+Job an den Lasercutter. Der normale Start enthält keinen Selbsttest.
+
+Die Materialdaten sind in `resources/materials.json` eingebettet.
+Originaldateien liegen unter `reference/fau-settings`.
+Der Import lässt sich mit `scripts/import-fau-materials.py` aus einem
+lokalen Checkout der FAU-Einstellungen wiederholen. 0 mm bedeutet in
+den FAU-Profilen „nicht festgelegt“ und wird entsprechend angezeigt.
+Profile mit 0 % Leistung werden nicht als übernehmbare Presets angeboten.
+
+Details und fehlende Funktionen: [PROTOCOL.md](PROTOCOL.md).
+Lizenz: LGPL-3.0-or-later, siehe `../COPYING.LESSER`.

@@ -1,0 +1,207 @@
+name: VisiCutRust releases
+
+on:
+  push:
+    branches: [master, main]
+    tags: ["v*"]
+    paths:
+      - "visicut-rust/**"
+      - ".github/workflows/rust-desktop.yml"
+      - "COPYING*"
+      - "distribute/mac/MacIcon.icns"
+  pull_request:
+    paths:
+      - "visicut-rust/**"
+      - ".github/workflows/rust-desktop.yml"
+      - "COPYING*"
+      - "distribute/mac/MacIcon.icns"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: visicut-rust-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: "1"
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+          - os: macos-15-intel
+            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
+    defaults:
+      run:
+        shell: bash
+        working-directory: visicut-rust
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            pkg-config libxkbcommon-dev libwayland-dev libegl1-mesa-dev \
+            libfontconfig1-dev libdbus-1-dev
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
+
+      - name: Verify native build target
+        env:
+          EXPECTED_HOST: ${{ matrix.target }}
+        run: |
+          rustc --version
+          test "$(rustc -vV | sed -n 's/^host: //p')" = "$EXPECTED_HOST"
+
+      - name: Validate release version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version=$(cargo metadata --locked --no-deps --format-version 1 | python -c 'import json, sys; print(json.load(sys.stdin)["packages"][0]["version"])')
+          if [[ "$RELEASE_TAG" != "v$version" ]]; then
+            echo "Release tag $RELEASE_TAG must match Cargo.toml version v$version" >&2
+            exit 1
+          fi
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@63fed3e2fecf6f7b51dc6f043341b79ef82a9ae7 # v2.9.2
+        with:
+          workspaces: visicut-rust
+          shared-key: ${{ matrix.target }}
+
+      - name: Check formatting
+        if: runner.os == 'Linux'
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        if: runner.os == 'Linux'
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Test Rust core and portable application
+        run: cargo test --locked --all-targets
+
+      - name: Build portable desktop application
+        run: cargo build --locked --release --bin visicut-rust
+
+      - name: Build and sign native macOS application
+        if: runner.os == 'macOS'
+        run: bash scripts/bundle-macos.sh
+
+      - name: Test native macOS interface and timeline
+        if: runner.os == 'macOS'
+        run: |
+          "dist/VisiCutRust.app/Contents/MacOS/visicut-rust" \
+            --ui-test --capture "$PWD/dist/native-preview.png" \
+            2>&1 | tee dist/native-ui-test.log
+
+      - name: Package desktop application
+        env:
+          PACKAGE_TARGET: ${{ matrix.target }}
+        run: python scripts/package-ci.py "$PACKAGE_TARGET"
+
+      - name: Upload application
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: VisiCutRust-${{ matrix.target }}
+          path: visicut-rust/dist/VisiCutRust-*-${{ matrix.target }}.*
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload native UI test evidence
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-ui-test-${{ matrix.target }}
+          path: |
+            visicut-rust/dist/native-preview.png
+            visicut-rust/dist/native-ui-test.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  release:
+    name: Publish GitHub release
+    if: github.repository == 'dbambus/VisiCutRust' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download all release packages
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: VisiCutRust-*
+          merge-multiple: true
+          path: release
+
+      - name: Verify packages and create checksums
+        working-directory: release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          for target in x86_64-pc-windows-msvc x86_64-apple-darwin aarch64-apple-darwin; do
+            test -s "VisiCutRust-$version-$target.zip"
+          done
+          test -s "VisiCutRust-$version-x86_64-unknown-linux-gnu.tar.gz"
+          sha256sum VisiCutRust-* > SHA256SUMS.txt
+
+      - name: Publish complete release
+        working-directory: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          cat > RELEASE_NOTES.md <<'NOTES'
+          VisiCutRust desktop builds for Windows, Linux and macOS. No Java required.
+
+          | Download | Platform |
+          | --- | --- |
+          | `x86_64-pc-windows-msvc.zip` | Windows x64; extract and run `visicut-rust.exe` |
+          | `x86_64-unknown-linux-gnu.tar.gz` | Linux x64, Ubuntu 24.04 or compatible; extract and run `visicut-rust` |
+          | `x86_64-apple-darwin.zip` | macOS 14+ on Intel; extract `VisiCutRust.app` |
+          | `aarch64-apple-darwin.zip` | macOS 14+ on Apple Silicon; extract `VisiCutRust.app` |
+
+          Development release: macOS includes the native AppKit/SwiftUI interface,
+          object assignments and timeline. Windows/Linux have a simpler egui
+          interface sharing the Rust SVG/LTT core and saved `.vcr` projects.
+          Linux requires OpenGL/EGL, libxkbcommon and a desktop portal.
+          macOS apps are ad hoc signed, not notarized by Apple.
+          See the packaged README and PROTOCOL for hardware validation status.
+
+          All four native builds and Rust tests must pass before publication.
+          `SHA256SUMS.txt` contains the archive checksums.
+          NOTES
+          prerelease=false
+          if [[ "$RELEASE_TAG" == v0.* || "$RELEASE_TAG" == *-* ]]; then
+            prerelease=true
+          fi
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --draft \
+              --title "VisiCutRust $RELEASE_TAG" --notes-file RELEASE_NOTES.md
+          fi
+          gh release upload "$RELEASE_TAG" VisiCutRust-* SHA256SUMS.txt --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease" \
+            --title "VisiCutRust $RELEASE_TAG" --notes-file RELEASE_NOTES.md

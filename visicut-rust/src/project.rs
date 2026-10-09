@@ -1,0 +1,347 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(try_from = "ProjectFile")]
+pub struct Project {
+    pub format_version: u32,
+    pub name: String,
+    pub svg: String,
+    pub bed_width_mm: f32,
+    pub bed_height_mm: f32,
+    pub x_mm: f32,
+    pub y_mm: f32,
+    pub width_mm: f32,
+    pub height_mm: f32,
+    pub material: String,
+    pub thickness_mm: f32,
+    pub operation: Operation,
+    pub power_percent: f32,
+    pub speed_percent: f32,
+    pub passes: u32,
+    #[serde(default = "default_host")]
+    pub hostname: String,
+    #[serde(default = "default_port")]
+    pub port: u16,
+    pub steps: Vec<JobStep>,
+}
+
+/// Explicit object selections; an empty list retains the legacy whole-SVG job.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct JobStep {
+    pub operation: Operation,
+    pub objects: Vec<usize>,
+    pub power_percent: f32,
+    pub speed_percent: f32,
+    pub passes: u32,
+}
+
+// V1 stored a derived physical speed. V2 stores the controller percentage;
+// read both explicitly so legacy values never silently change units.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProjectFile {
+    format_version: u32,
+    name: String,
+    svg: String,
+    bed_width_mm: f32,
+    bed_height_mm: f32,
+    x_mm: f32,
+    y_mm: f32,
+    width_mm: f32,
+    height_mm: f32,
+    material: String,
+    thickness_mm: f32,
+    operation: Operation,
+    power_percent: f32,
+    speed_percent: Option<f32>,
+    speed_mm_s: Option<f32>,
+    passes: u32,
+    #[serde(default = "default_host")]
+    hostname: String,
+    #[serde(default = "default_port")]
+    port: u16,
+    #[serde(default)]
+    steps: Vec<JobStep>,
+}
+
+impl TryFrom<ProjectFile> for Project {
+    type Error = String;
+
+    fn try_from(file: ProjectFile) -> Result<Self, Self::Error> {
+        let speed_percent = match (file.format_version, file.speed_percent, file.speed_mm_s) {
+            (2, Some(percent), None) => percent,
+            (1, None, Some(mm_s)) => {
+                let factor = if file.operation == Operation::Engrave {
+                    6.4
+                } else {
+                    1.0
+                };
+                mm_s / (338.677 * factor) * 100.0
+            }
+            (1 | 2, _, _) => {
+                return Err("Geschwindigkeitseinheit passt nicht zur Projektversion".into());
+            }
+            _ => return Err("Unbekannte Projektversion".into()),
+        };
+        Ok(Self {
+            format_version: 2,
+            name: file.name,
+            svg: file.svg,
+            bed_width_mm: file.bed_width_mm,
+            bed_height_mm: file.bed_height_mm,
+            x_mm: file.x_mm,
+            y_mm: file.y_mm,
+            width_mm: file.width_mm,
+            height_mm: file.height_mm,
+            material: file.material,
+            thickness_mm: file.thickness_mm,
+            operation: file.operation,
+            power_percent: file.power_percent,
+            speed_percent,
+            passes: file.passes,
+            hostname: file.hostname,
+            port: file.port,
+            steps: file.steps,
+        })
+    }
+}
+
+fn default_host() -> String {
+    "lasercutter2".into()
+}
+fn default_port() -> u16 {
+    9100
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub enum Operation {
+    Cut,
+    Engrave,
+    Mark,
+}
+
+impl Operation {
+    pub fn prefix(self) -> &'static str {
+        match self {
+            Self::Cut => "Cut",
+            Self::Engrave => "Engrav",
+            Self::Mark => "Mark",
+        }
+    }
+    pub fn order(self) -> u8 {
+        match self {
+            Self::Engrave => 0,
+            Self::Mark => 1,
+            Self::Cut => 2,
+        }
+    }
+}
+
+impl Default for Project {
+    fn default() -> Self {
+        Self {
+            format_version: 2,
+            name: "Neues Projekt".into(),
+            svg: String::new(),
+            bed_width_mm: 1000.0,
+            bed_height_mm: 600.0,
+            x_mm: 10.0,
+            y_mm: 10.0,
+            width_mm: 100.0,
+            height_mm: 60.0,
+            material: "Material wählen".into(),
+            thickness_mm: 3.0,
+            operation: Operation::Cut,
+            power_percent: 20.0,
+            speed_percent: 10.0,
+            passes: 1,
+            hostname: default_host(),
+            port: default_port(),
+            steps: Vec::new(),
+        }
+    }
+}
+
+impl Project {
+    pub fn validate(&self) -> Result<(), String> {
+        self.validate_document()?;
+        if self.x_mm < 0.0
+            || self.y_mm < 0.0
+            || self.x_mm + self.width_mm > self.bed_width_mm + 0.001
+            || self.y_mm + self.height_mm > self.bed_height_mm + 0.001
+        {
+            return Err("Das Motiv liegt außerhalb des Arbeitsbetts".into());
+        }
+        if self.svg.is_empty() {
+            return Err("Zuerst eine SVG-Datei importieren".into());
+        }
+        Ok(())
+    }
+
+    /// Documents may contain unfinished placement or no artwork. Sending has
+    /// stricter requirements; drafts still need to survive a save/open cycle.
+    pub fn validate_document(&self) -> Result<(), String> {
+        if self.format_version != 2 {
+            return Err("Unbekannte Projektversion".into());
+        }
+        for (name, value) in [
+            ("Bettbreite", self.bed_width_mm),
+            ("Betthöhe", self.bed_height_mm),
+            ("Motivbreite", self.width_mm),
+            ("Motivhöhe", self.height_mm),
+        ] {
+            if !value.is_finite() || value <= 0.0 || value > 100_000.0 {
+                return Err(format!("{name} muss positiv und höchstens 100000 sein"));
+            }
+        }
+        if !self.thickness_mm.is_finite() || !(0.0..=100_000.0).contains(&self.thickness_mm) {
+            return Err("Materialstärke muss nichtnegativ und endlich sein".into());
+        }
+        if !self.power_percent.is_finite() || !(0.0..=100.0).contains(&self.power_percent) {
+            return Err("Leistung muss zwischen 0 und 100 % liegen".into());
+        }
+        if !self.speed_percent.is_finite() || !(0.1..=100.0).contains(&self.speed_percent) {
+            return Err("Geschwindigkeit muss zwischen 0,1 und 100 % liegen".into());
+        }
+        if !(1..=100).contains(&self.passes) {
+            return Err("Durchgänge müssen zwischen 1 und 100 liegen".into());
+        }
+        if !self.x_mm.is_finite() || !self.y_mm.is_finite() {
+            return Err("Position muss endlich sein".into());
+        }
+        if self.steps.len() > 3 {
+            return Err(
+                "Höchstens je ein Schritt für Gravieren, Markieren und Schneiden ist zulässig"
+                    .into(),
+            );
+        }
+        let mut assigned = std::collections::HashSet::new();
+        for (i, step) in self.steps.iter().enumerate() {
+            if self.steps[..i]
+                .iter()
+                .any(|s| s.operation == step.operation)
+            {
+                return Err("Bearbeitungsverfahren doppelt vorhanden".into());
+            }
+            if !step.power_percent.is_finite()
+                || !(0.0..=100.0).contains(&step.power_percent)
+                || !step.speed_percent.is_finite()
+                || !(0.1..=100.0).contains(&step.speed_percent)
+                || !(1..=100).contains(&step.passes)
+            {
+                return Err("Ungültige Parameter in einem Bearbeitungsschritt".into());
+            }
+            for object in &step.objects {
+                if !assigned.insert(*object) {
+                    return Err("Ein SVG-Objekt darf nur einem Verfahren zugeordnet sein".into());
+                }
+            }
+        }
+        if !self.steps.is_empty() {
+            let count = crate::selection::objects(&self.svg)?.len();
+            if assigned.iter().any(|id| *id >= count) {
+                return Err("Zuordnung verweist auf ein nicht vorhandenes SVG-Objekt".into());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn project() -> Project {
+        Project {
+            svg: "<svg/>".into(),
+            ..Default::default()
+        }
+    }
+    #[test]
+    fn rejects_out_of_bed_and_nan() {
+        let mut p = project();
+        assert!(p.validate().is_ok());
+        p.x_mm = 950.0;
+        assert!(p.validate().is_err());
+        p.x_mm = f32::NAN;
+        assert!(p.validate().is_err());
+    }
+    #[test]
+    fn rejects_unknown_version_and_invalid_parameters() {
+        let mut p = project();
+        p.format_version = 3;
+        assert!(p.validate().is_err());
+        p.format_version = 2;
+        p.power_percent = 101.0;
+        assert!(p.validate().is_err());
+    }
+    #[test]
+    fn project_roundtrip_preserves_embedded_svg() {
+        let p = project();
+        let loaded: Project = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+        assert_eq!(loaded.svg, p.svg);
+        assert!(loaded.validate().is_ok());
+    }
+
+    #[test]
+    fn loads_legacy_v2_without_object_steps() {
+        let mut value = serde_json::to_value(project()).unwrap();
+        value.as_object_mut().unwrap().remove("steps");
+        let loaded: Project = serde_json::from_value(value).unwrap();
+        assert!(loaded.steps.is_empty());
+        assert!(loaded.validate().is_ok());
+    }
+
+    #[test]
+    fn drafts_can_save_without_being_sendable() {
+        let p = Project::default();
+        assert!(p.validate_document().is_ok());
+        assert!(p.validate().is_err());
+        let p = Project {
+            x_mm: 950.0,
+            thickness_mm: 0.0,
+            ..project()
+        };
+        assert!(p.validate_document().is_ok());
+        assert!(p.validate().is_err());
+    }
+
+    #[test]
+    fn migrates_legacy_speed_with_operation_specific_scale() {
+        for (operation, old_speed, expected) in [
+            (Operation::Cut, 30.48093, 9.0),
+            (Operation::Engrave, 2167.5328, 100.0),
+        ] {
+            let mut file = serde_json::to_value(Project {
+                operation,
+                ..project()
+            })
+            .unwrap();
+            file["format_version"] = 1.into();
+            file.as_object_mut().unwrap().remove("speed_percent");
+            file["speed_mm_s"] = serde_json::json!(old_speed);
+            let loaded: Project = serde_json::from_value(file).unwrap();
+            assert_eq!(loaded.format_version, 2);
+            assert!((loaded.speed_percent - expected).abs() < 0.0001);
+            let saved = serde_json::to_value(loaded).unwrap();
+            assert!(saved.get("speed_mm_s").is_none());
+        }
+    }
+
+    #[test]
+    fn rejects_invalid_percent_and_ambiguous_unit() {
+        for speed in [0.0, -1.0, 100.1, f32::NAN] {
+            assert!(
+                Project {
+                    speed_percent: speed,
+                    ..project()
+                }
+                .validate_document()
+                .is_err()
+            );
+        }
+        let mut file = serde_json::to_value(project()).unwrap();
+        file["speed_mm_s"] = serde_json::json!(10.0);
+        assert!(serde_json::from_value::<Project>(file).is_err());
+    }
+}
