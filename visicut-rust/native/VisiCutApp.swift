@@ -45,17 +45,18 @@ struct CoreError: LocalizedError {
 }
 
 enum Operation: String, Codable, CaseIterable, Identifiable {
-    case cut = "Cut", engrave = "Engrave", mark = "Mark"
+    case cut = "Cut", engrave = "Engrave", engrave3d = "Engrave3d", mark = "Mark"
     var id: String { rawValue }
     var title: String {
-        switch self { case .cut: return "Schneiden"; case .engrave: return "Gravieren"; case .mark: return "Markieren" }
+        switch self { case .cut: return "Schneiden"; case .engrave: return "Gravieren"; case .engrave3d: return "3D-Gravur"; case .mark: return "Markieren" }
     }
     var symbol: String {
-        switch self { case .cut: return "scissors"; case .engrave: return "square.stack.3d.up"; case .mark: return "pencil.tip" }
+        switch self { case .cut: return "scissors"; case .engrave: return "square.stack.3d.up"; case .engrave3d: return "cube"; case .mark: return "pencil.tip" }
     }
     var color: Color {
-        switch self { case .cut: return .red; case .engrave: return .blue; case .mark: return .purple }
+        switch self { case .cut: return .red; case .engrave: return .blue; case .engrave3d: return .orange; case .mark: return .purple }
     }
+    var isRaster: Bool { self == .engrave || self == .engrave3d }
 }
 
 struct Project: Codable, Equatable {
@@ -79,6 +80,8 @@ struct Project: Codable, Equatable {
     var steps: [JobStep]
     var rotary_axis: Bool
     var rotary_diameter_mm: Double
+    var raster: RasterSettings
+    var ignore_filters: [[Filter]]
 
     var hasArtwork: Bool { !svg.isEmpty }
     var fitsBed: Bool {
@@ -88,19 +91,18 @@ struct Project: Codable, Equatable {
     }
 }
 
-struct MaterialCatalog: Decodable { let materials: [Material] }
-struct Material: Decodable, Identifiable {
-    let id: String
-    let name: String
-    let profiles: [MaterialProfile]
+struct Material: Codable, Identifiable, Equatable {
+    var id: String
+    var name: String
+    var profiles: [MaterialProfile]
     var thicknesses: [Double] { Array(Set(profiles.map(\.thickness_mm))).sorted() }
 }
-struct MaterialProfile: Decodable {
-    let thickness_mm: Double
-    let operation: Operation
-    let power_percent: Double
-    let speed_percent: Double
-    let source: String
+struct MaterialProfile: Codable, Equatable {
+    var thickness_mm: Double
+    var operation: Operation
+    var power_percent: Double
+    var speed_percent: Double
+    var source: String?
 }
 struct SVGObject: Decodable, Identifiable { let id: Int; let label: String }
 struct JobStep: Codable, Equatable {
@@ -109,6 +111,10 @@ struct JobStep: Codable, Equatable {
     var power_percent: Double
     var speed_percent: Double
     var passes: Int
+    var filters: [Filter]?
+    var rest: Bool
+    var raster: RasterSettings
+    var additional: [ParameterSet]
 }
 struct PreparedStep: Decodable {
     let name: String
@@ -118,6 +124,7 @@ struct PreparedStep: Decodable {
     let power_percent: Double
     let speed_percent: Double
     let passes: Int
+    let parameter_sets: Int
 }
 struct ProjectResponse: Decodable { let project: Project; let preview: Preview?; let objects: [SVGObject]? }
 struct Preview: Decodable { let png: [UInt8] }
@@ -149,6 +156,9 @@ func duration(_ seconds: Double) -> String {
 final class AppModel: ObservableObject {
     @Published var project: Project { didSet {
         if !replacing { dirty = true }
+        if oldValue.svg != project.svg || oldValue.steps != project.steps || oldValue.ignore_filters != project.ignore_filters {
+            scheduleMappingRefresh()
+        }
         if preparedJob != nil { status = "Auftrag geändert. Vorschau und Zeit neu berechnen." }
         preparedJob = nil
         jobImage = nil
@@ -174,7 +184,12 @@ final class AppModel: ObservableObject {
     @Published var cameraImage: NSImage?
     @Published var cameraLoading = false
     let labs: [LabSetting]
-    let materials: [Material]
+    @Published var materials: [Material]
+    @Published var materialsCustom = false
+    @Published var mapping: MappingInfo?
+    @Published var mappingError: String?
+    var materialSource = ""
+    var mappingScheduled = false
     var projectURL: URL?
     private var replacing = true
 
@@ -187,8 +202,11 @@ final class AppModel: ObservableObject {
             project = initial.project
             let catalog: MaterialCatalog = try RustCore.decode("materials")
             materials = catalog.materials
+            materialSource = catalog.source
+            materialsCustom = catalog.custom
             project.material = ""
             error = list.error.map { "Geräteliste nicht lesbar, FAU-Standard wird verwendet: " + $0 }
+                ?? catalog.error.map { "Materialbibliothek nicht lesbar, FAU-Bibliothek wird verwendet: " + $0 }
         } catch {
             fatalError("Rust-Kern konnte nicht initialisiert werden: \(error)")
         }
@@ -397,10 +415,12 @@ final class AppModel: ObservableObject {
         let preset = selectedMaterial?.profiles.first {
             abs($0.thickness_mm - project.thickness_mm) < 0.0001 && $0.operation == operation && $0.power_percent > 0
         }
-        return JobStep(operation: operation, objects: [],
+        var step = JobStep(operation: operation, objects: [],
             power_percent: preset?.power_percent ?? (operation == .mark && project.operation != .mark ? 0 : project.power_percent),
             speed_percent: preset?.speed_percent ?? (operation == .mark && project.operation != .mark ? 100 : project.speed_percent),
             passes: project.passes)
+        if operation.isRaster && project.operation.isRaster { step.raster = project.raster }
+        return step
     }
 
     func setIndividual(_ enabled: Bool) {
@@ -505,6 +525,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     var model: AppModel!
     var workspaceWindow: NSWindow?
     var settingsWindow: NSWindow?
+    var materialsWindow: NSWindow?
     private var changes: AnyCancellable?
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.regular)
@@ -618,6 +639,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
         let job = submenu("Job")
         job.addItem(menuItem("Auf dem Arbeitsbett zentrieren", action: #selector(centerArtwork)))
         job.addItem(menuItem("FAU-Materialprofil übernehmen", action: #selector(applyProfile)))
+        job.addItem(menuItem("Materialbibliothek …", action: #selector(showMaterials), key: "m", modifiers: [.command, .shift]))
         job.addItem(menuItem("Auftragsvorschau und Zeit …", action: #selector(previewJob), key: "p", modifiers: [.command, .shift]))
         job.addItem(.separator())
         job.addItem(menuItem("An Lasercutter senden …", action: #selector(sendJob)))
@@ -663,6 +685,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSTo
     @objc func toggleCamera() { model.toggleCamera() }
     @objc func refreshCamera() { model.refreshCamera() }
     @objc func showMainWindow() { showWorkspace() }
+    @objc func showMaterials() {
+        if let window = materialsWindow { window.makeKeyAndOrderFront(nil); return }
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 860, height: 560), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        window.contentView = NSHostingView(rootView: MaterialEditor(model: model))
+        window.title = "Materialbibliothek"
+        window.isReleasedWhenClosed = false
+        materialsWindow = window
+        window.center(); window.makeKeyAndOrderFront(nil)
+    }
     @objc func showSettings() {
         if let window = settingsWindow { window.makeKeyAndOrderFront(nil); return }
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 820, height: 560), styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
@@ -747,7 +778,7 @@ struct Workspace: View {
                         Text("Ca. \(duration(prepared.estimated_seconds))").monospacedDigit()
                         Spacer()
                         Toggle("Bearbeitung anzeigen", isOn: $model.showProcessing)
-                        Text("Rot: Schnitt · Blau: Gravur · Violett: Markieren").font(.caption).foregroundStyle(.secondary)
+                        Text("Rot: Schnitt · Blau: Gravur · Orange: 3D · Violett: Markieren").font(.caption).foregroundStyle(.secondary)
                     } else {
                         Text("Nach Änderungen neu berechnen").font(.caption).foregroundStyle(.secondary)
                         Spacer()
@@ -845,10 +876,16 @@ struct Inspector: View {
                 }
             }
             Section("Objektzuordnung") {
-                Toggle("Objekte einzeln zuweisen", isOn: Binding(
-                    get: { !model.project.steps.isEmpty }, set: { model.setIndividual($0) }))
-                    .disabled(!model.project.hasArtwork)
-                if !model.project.steps.isEmpty {
+                Picker("Zuordnung", selection: Binding(get: { model.assignmentMode }, set: { model.setAssignmentMode($0) })) {
+                    ForEach(AssignmentMode.allCases) { Text($0.title).tag($0) }
+                }.pickerStyle(.segmented).disabled(!model.project.hasArtwork)
+                    .accessibilityIdentifier("assignmentMode")
+                if model.assignmentMode == .whole {
+                    Text("Ein Verfahren für das gesamte Motiv.").font(.caption).foregroundStyle(.secondary)
+                } else if model.assignmentMode == .rules {
+                    Text("Objekte nach Farbe, Linienstärke, Ebene, Typ oder ID zuordnen.").font(.caption).foregroundStyle(.secondary)
+                }
+                if model.assignmentMode == .objects {
                     Text("Schneiden, gravieren, markieren oder ignorieren.")
                         .font(.caption).foregroundStyle(.secondary)
                     ScrollView {
@@ -864,13 +901,16 @@ struct Inspector: View {
                             }
                         }.padding(.vertical, 4)
                     }.frame(height: min(220, Double(model.objects.count) * 38))
-                    Text("Einzelaufträge: Engrav → Mark → Cut").font(.caption).foregroundStyle(.secondary)
+                }
+                if model.assignmentMode != .whole {
+                    Text("Ein LTT-Auftrag je Verfahren: Engrav → Eng3D → Mark → Cut").font(.caption).foregroundStyle(.secondary)
                 }
             }
+            if model.assignmentMode == .rules { RulesSection(model: model) }
             if model.project.steps.isEmpty {
             Section("Bearbeitung · gesamtes Motiv") {
                 OperationSelector(selection: Binding(get: { model.project.operation }, set: { model.selectOperation($0) }))
-                if model.project.operation == .mark {
+                if model.project.operation == .mark && model.preset == nil {
                     Text("Konturen markieren. Eigene Leistung einstellen; kein Schnittprofil übernehmen.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -889,6 +929,9 @@ struct Inspector: View {
                 NumberField("Geschwindigkeit", value: $model.project.speed_percent, unit: "%")
                 Stepper(value: $model.project.passes, in: 1...100) {
                     LabeledContent("Durchgänge", value: String(model.project.passes))
+                }
+                if model.project.operation.isRaster {
+                    RasterOptions(settings: $model.project.raster, operation: model.project.operation)
                 }
             }
             } else {
@@ -957,28 +1000,48 @@ struct AssignmentMenu: View {
 struct StepInspector: View {
     @ObservedObject var model: AppModel
     let index: Int
+    private var step: JobStep { model.project.steps[index] }
     var body: some View {
         Section {
-            Label(model.project.steps[index].operation.title, systemImage: model.project.steps[index].operation.symbol)
-                .fontWeight(.semibold).foregroundStyle(model.project.steps[index].operation.color)
-            Text("\(model.project.steps[index].objects.count) Objekte").foregroundStyle(.secondary)
-            if model.project.steps[index].operation == .mark && model.project.steps[index].power_percent == 0 {
-                Text("Zum Markieren zuerst eine eigene Leistung einstellen.").font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Label(step.operation.title, systemImage: step.operation.symbol)
+                    .fontWeight(.semibold).foregroundStyle(step.operation.color)
+                Spacer()
+                if step.isRule {
+                    Button { model.project.steps.remove(at: index) } label: { Image(systemName: "trash") }
+                        .buttonStyle(.borderless).help("Schritt entfernen")
+                }
             }
-            if model.project.steps[index].operation == .engrave {
-                Text("Schwarz/Weiß-Gravur: Helle Farben können entfallen.")
-                    .font(.caption).foregroundStyle(.secondary)
+            Text("\(model.objectCount(index)) Objekte").foregroundStyle(.secondary)
+            if step.isRule {
+                Toggle("Rest: alle übrigen Objekte", isOn: Binding(get: { step.rest }, set: {
+                    model.project.steps[index].rest = $0
+                    model.project.steps[index].filters = $0 ? nil : []
+                }))
+                if !step.rest {
+                    FilterSetEditor(filters: Binding(get: { model.project.steps[index].filters ?? [] },
+                                                     set: { model.project.steps[index].filters = $0 }),
+                                    mapping: model.mapping)
+                }
+            }
+            if step.operation == .mark && step.power_percent == 0 {
+                Text("Zum Markieren zuerst eine eigene Leistung einstellen.").font(.caption).foregroundStyle(.secondary)
             }
             NumberField("Leistung", value: $model.project.steps[index].power_percent, unit: "%")
             NumberField("Geschwindigkeit", value: $model.project.steps[index].speed_percent, unit: "%")
             Stepper(value: $model.project.steps[index].passes, in: 1...100) {
-                LabeledContent("Durchgänge", value: String(model.project.steps[index].passes))
+                LabeledContent("Durchgänge", value: String(step.passes))
             }
             Button("FAU-Profil übernehmen") { model.applyStepPreset(index) }
                 .disabled(!(model.selectedMaterial?.profiles.contains {
                     abs($0.thickness_mm - model.project.thickness_mm) < 0.0001 &&
-                    $0.operation == model.project.steps[index].operation && $0.power_percent > 0
+                    $0.operation == step.operation && $0.power_percent > 0
                 } ?? false))
+            ParameterSets(sets: $model.project.steps[index].additional,
+                          first: ParameterSet(power_percent: step.power_percent, speed_percent: step.speed_percent, passes: step.passes))
+            if step.operation.isRaster {
+                RasterOptions(settings: $model.project.steps[index].raster, operation: step.operation)
+            }
         }
     }
 }
@@ -997,7 +1060,7 @@ struct JobPreview: View {
                     VStack {
                         JobSimulation(job: prepared, project: model.project, image: model.jobImage, playback: model.playback)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        Text("Rot: Schneiden · Blau: Gravieren · Violett: Markieren")
+                        Text("Rot: Schneiden · Blau: Gravieren · Orange: 3D-Gravur · Violett: Markieren")
                             .font(.caption).foregroundStyle(.secondary)
                         Text("\(format(model.project.width_mm)) × \(format(model.project.height_mm)) mm · X \(format(model.project.x_mm)) / Y \(format(model.project.y_mm)) mm")
                             .font(.caption).foregroundStyle(.secondary)
@@ -1015,7 +1078,7 @@ struct JobPreview: View {
                                 Label("\(index + 1). \(step.operation.title)", systemImage: step.operation.symbol)
                                     .bold().foregroundStyle(step.operation.color)
                                 Text(step.name).font(.caption).monospaced()
-                                Text("Ca. \(duration(step.estimated_seconds)) · \(step.passes) Durchgänge")
+                                Text("Ca. \(duration(step.estimated_seconds)) · \(step.passes) Durchgänge" + (step.parameter_sets > 1 ? " · \(step.parameter_sets) Parametersätze" : ""))
                                 Text("Leistung \(format(step.power_percent)) % · Tempo \(format(step.speed_percent)) %")
                                 Text(step.description).foregroundStyle(.secondary)
                             }.font(.callout)
@@ -1024,7 +1087,7 @@ struct JobPreview: View {
                             .font(.caption).foregroundStyle(.secondary)
                         Text("\(ByteCountFormatter.string(fromByteCount: Int64(prepared.byteCount), countStyle: .file)) · \(model.project.hostname):\(String(model.project.port))")
                             .font(.caption).foregroundStyle(.secondary)
-                        Text("\(prepared.jobs.count) Einzelaufträge · Engrav → Mark → Cut").font(.caption).foregroundStyle(.secondary)
+                        Text("\(prepared.jobs.count) Einzelaufträge · Engrav → Eng3D → Mark → Cut").font(.caption).foregroundStyle(.secondary)
                     }
                     }.frame(width: 270, alignment: .leading)
                 }
@@ -1257,6 +1320,66 @@ func testDevicesRotaryAndCamera(_ model: AppModel) throws {
     model.project.rotary_diameter_mm = 100
 }
 
+/// Rule-based mapping, engraving options, parameter sets and the material
+/// library; restores the project afterwards.
+@MainActor
+func testRulesEngravingAndMaterials(_ model: AppModel) throws {
+    let saved = model.project
+    defer { model.project = saved }
+    model.setAssignmentMode(.rules)
+    guard model.assignmentMode == .rules, let mapping = model.mapping,
+          let template = mapping.predefined.first(where: { $0.name.hasPrefix("Rot schneiden") }),
+          mapping.suggestions(.strokeColor).contains(where: { $0.value == "#ef7141" })
+    else { throw CoreError("Regelzuordnung nicht verfügbar") }
+    model.applyPredefined(template)
+    guard let cut = model.project.steps.firstIndex(where: { $0.operation == .cut }) else { throw CoreError("Vorlage ohne Schnitt") }
+    model.project.steps[cut].filters = [Filter(attribute: .strokeColor, value: "#ef7141", compare: false, inverted: false)]
+    model.project.steps[cut].additional = [ParameterSet(power_percent: 50, speed_percent: 30, passes: 1)]
+    model.addRuleStep(.engrave3d)
+    let deep = model.project.steps.count - 1
+    model.project.steps[deep].filters = [Filter(attribute: .id, value: "Gravurkreis", compare: false, inverted: false)]
+    model.project.steps[deep].power_percent = 40
+    model.project.ignore_filters = [[Filter(attribute: .id, value: "Dreieck", compare: false, inverted: false)]]
+    model.refreshMapping()
+    // Ignored and rule-matched objects are not part of the rest.
+    guard model.objectCount(cut) == 1, model.objectCount(deep) == 1,
+          let rest = model.project.steps.firstIndex(where: \.rest), model.objectCount(rest) == 0
+    else { throw CoreError("Regeln wählen falsche Objekte: \(model.mapping?.selections ?? [])") }
+    model.project.ignore_filters = []
+    model.refreshMapping()
+    guard model.objectCount(rest) == 1 else { throw CoreError("Rest ohne Ignorierregel falsch") }
+    if let engrave = model.project.steps.firstIndex(where: { $0.operation == .engrave }) {
+        model.project.steps[engrave].raster.dithering = .floydSteinberg
+        model.project.steps[engrave].raster.bidirectional = false
+    }
+    let job: PreparedJob = try RustCore.decode("prepare", project: model.project)
+    guard job.jobs.map(\.operation) == [.engrave, .engrave3d, .cut],
+          job.steps.first(where: { $0.operation == .cut })?.parameter_sets == 2,
+          job.steps.first(where: { $0.operation == .engrave })?.description.contains("Floyd-Steinberg") == true,
+          job.timeline.programs.contains(where: { $0.operation == .engrave3d })
+    else { throw CoreError("Regel-Auftrag falsch: \(job.jobs.map(\.name))") }
+    model.project.steps[cut].filters = [Filter(attribute: .strokeWidth, value: "breit", compare: false, inverted: false)]
+    model.refreshMapping()
+    guard model.mappingError != nil else { throw CoreError("Ungültige Linienstärke nicht gemeldet") }
+
+    var materials = model.materials
+    materials.append(Material(id: "ui-test", name: "UI-Test Material", profiles: [
+        MaterialProfile(thickness_mm: 2, operation: .engrave3d, power_percent: 35, speed_percent: 80, source: nil)]))
+    guard model.saveMaterials(materials) else { throw CoreError("Materialbibliothek nicht gesichert") }
+    let reloaded: MaterialCatalog = try RustCore.decode("materials")
+    guard reloaded.custom, reloaded.materials.contains(where: { $0.name == "UI-Test Material" }) else {
+        throw CoreError("Eigene Materialbibliothek nicht geladen")
+    }
+    var duplicate = materials
+    duplicate.append(materials[0])
+    guard (try? RustCore.call("save_materials", values: ["library": RustCore.json(MaterialLibrary(source: "", device: "", materials: duplicate))])) == nil
+    else { throw CoreError("Doppeltes Material akzeptiert") }
+    model.resetMaterials()
+    guard !model.materialsCustom, !model.materials.contains(where: { $0.name == "UI-Test Material" }),
+          model.materials.contains(where: { $0.profiles.contains { $0.operation == .mark } })
+    else { throw CoreError("FAU-Bibliothek nicht wiederhergestellt") }
+}
+
 @MainActor
 func runUITest(_ model: AppModel) {
     // Explicit development mode: exercises native state, persistence and Rust
@@ -1312,8 +1435,13 @@ func runUITest(_ model: AppModel) {
         model.setIndividual(true)
         model.assign(1, to: "Engrave")
         model.assign(2, to: "Mark")
+        // Marking uses the FAU mark profile if there is one, never the cut parameters.
+        let markPreset = model.selectedMaterial?.profiles.first {
+            abs($0.thickness_mm - model.project.thickness_mm) < 0.0001 && $0.operation == .mark && $0.power_percent > 0
+        }
         guard let markIndex = model.project.steps.firstIndex(where: { $0.operation == .mark }),
-              model.project.steps[markIndex].power_percent == 0 else { throw CoreError("Markieren übernimmt ungewollt Schnittparameter") }
+              model.project.steps[markIndex].power_percent == (markPreset?.power_percent ?? 0)
+        else { throw CoreError("Markieren übernimmt ungewollt Schnittparameter") }
         model.project.steps[markIndex].power_percent = 5
         model.project.steps[markIndex].speed_percent = 60
         model.project.steps[markIndex].passes = 2
@@ -1335,12 +1463,13 @@ func runUITest(_ model: AppModel) {
         model.preparedJob = mixed
         model.jobImage = NSImage(data: Data(mixed.preview_png))
         try testDevicesRotaryAndCamera(model)
+        try testRulesEngravingAndMaterials(model)
         // Exercise the actual asynchronous preparation and sheet presentation.
         model.preparedJob = nil
         model.jobImage = nil
         model.previewJob()
         model.dirty = false
-        print("Native UI state tests passed: material, thickness, operation, presets, proportional scaling, native save / Rust reload, Rust export, object assignments, mixed job preview and estimate, stale preview invalidation, devices, rotary axis, camera background and calibration")
+        print("Native UI state tests passed: material, thickness, operation, presets, proportional scaling, native save / Rust reload, Rust export, object assignments, mixed job preview and estimate, stale preview invalidation, devices, rotary axis, camera background and calibration, rule mapping, 3D engraving, dithering, parameter sets, material library")
     } catch {
         fputs("Native UI tests failed: \(error)\n", stderr)
         exit(1)

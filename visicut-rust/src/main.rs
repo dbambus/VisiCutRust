@@ -1,4 +1,5 @@
 mod devices_ui;
+mod jobs_ui;
 
 use eframe::egui::{self, Color32, Pos2, Rect, Sense, Stroke, Vec2};
 use std::path::{Path, PathBuf};
@@ -19,6 +20,7 @@ struct VisiCutRust {
     allow_close: bool,
     send_result: Option<std::sync::mpsc::Receiver<Result<Vec<String>, String>>>,
     devices: devices_ui::DeviceUi,
+    jobs: jobs_ui::JobUi,
     #[cfg(feature = "screenshot")]
     capture: Option<(PathBuf, u32)>,
 }
@@ -27,6 +29,7 @@ impl VisiCutRust {
     fn new(cc: &eframe::CreationContext<'_>) -> Self {
         cc.egui_ctx.set_visuals(egui::Visuals::light());
         let (devices, device_error) = devices_ui::DeviceUi::load();
+        let (jobs, material_error) = jobs_ui::JobUi::load();
         let mut app = Self {
             project: Project::default(),
             texture: None,
@@ -38,13 +41,15 @@ impl VisiCutRust {
             allow_close: false,
             send_result: None,
             devices,
+            jobs,
             #[cfg(feature = "screenshot")]
             capture: None,
         };
         app.devices.apply(&mut app.project);
-        if let Some(error) = device_error {
+        if let Some(error) = device_error.or(material_error) {
             app.status = error;
         }
+        app.project.material.clear();
         let arguments: Vec<String> = std::env::args().skip(1).collect();
         #[cfg(feature = "screenshot")]
         if let Some(index) = arguments
@@ -291,52 +296,10 @@ impl VisiCutRust {
                 .strong()
                 .small(),
         );
-        self.dirty |= ui
-            .text_edit_singleline(&mut self.project.material)
-            .changed();
-        self.dirty |= number(
-            ui,
-            "Stärke",
-            &mut self.project.thickness_mm,
-            0.1..=1000.0,
-            " mm",
-        );
-        ui.horizontal(|ui| {
-            self.dirty |= ui
-                .selectable_value(&mut self.project.operation, Operation::Cut, "Schneiden")
-                .changed();
-            self.dirty |= ui
-                .selectable_value(&mut self.project.operation, Operation::Engrave, "Gravieren")
-                .changed();
-            if ui
-                .selectable_value(&mut self.project.operation, Operation::Mark, "Markieren")
-                .changed()
-            {
-                self.dirty = true;
-                self.project.power_percent = 0.0;
-                self.project.speed_percent = 100.0;
-            }
-        });
-        self.dirty |= number(
-            ui,
-            "Leistung",
-            &mut self.project.power_percent,
-            0.0..=100.0,
-            " %",
-        );
-        self.dirty |= number(
-            ui,
-            "Geschwindigkeit",
-            &mut self.project.speed_percent,
-            0.1..=100.0,
-            " %",
-        );
-        ui.horizontal(|ui| {
-            ui.label("Durchgänge");
-            self.dirty |= ui
-                .add(egui::DragValue::new(&mut self.project.passes).range(1..=100))
-                .changed();
-        });
+        self.jobs.material(ui, &mut self.project, &mut self.dirty);
+        ui.separator();
+        ui.label(egui::RichText::new("ZUORDNUNG").strong().small());
+        self.jobs.processing(ui, &mut self.project, &mut self.dirty);
         ui.add_space(16.0);
         match self.project.validate() {
             Ok(()) => {
@@ -576,6 +539,7 @@ impl eframe::App for VisiCutRust {
                     });
                 });
         }
+        self.jobs.windows(ctx, &mut self.status);
         if let Some(devices_ui::Action::CalibrationPage(points)) =
             self.devices
                 .windows(ctx, &mut self.project, &mut self.status)

@@ -32,7 +32,7 @@ notarisiert.
 ## Windows, Linux und GitHub Actions
 
 Der Rust-Kern und die egui-Entwicklungsoberfläche bauen auch auf Windows und
-Linux. Die vollständige AppKit-/SwiftUI-Oberfläche mit Objektzuordnung und
+Linux. Die vollständige AppKit-/SwiftUI-Oberfläche mit Einzelzuordnung und
 Zeitslider ist macOS-spezifisch. Windows/Linux verwenden den gemeinsamen
 SVG-/LTT-Kern und können gespeicherte `.vcr`-Projekte öffnen, haben aber noch
 nicht dieselben Bedienfunktionen.
@@ -82,26 +82,41 @@ lokal nach einem Build für die jeweilige Host-Architektur.
 1. Eine SVG über **Öffnen** (⌘O) importieren oder **Beispiel** wählen.
 2. Motiv positionieren, skalieren oder auf dem Arbeitsbett zentrieren.
 3. **Material** und **Stärke** aus den nativen Auswahlmenüs wählen.
-   Die Bibliothek enthält 31 Materialien und 84 Schnitt-/Gravurprofile
-   aus den öffentlichen FAU-LTT-Einstellungen. **Profil übernehmen**
+   Die Bibliothek enthält 31 Materialien und 115 Schnitt-, Gravur-, Markier-
+   und 3D-Profile aus den öffentlichen FAU-LTT-Einstellungen.
+   **Job → Materialbibliothek …** (⇧⌘M) bearbeitet Materialien und Profile,
+   importiert/exportiert sie als JSON und stellt die FAU-Bibliothek wieder her;
+   eigene Änderungen liegen im Einstellungsordner (siehe unten). **Profil übernehmen**
    setzt Leistung und Geschwindigkeit für die gewählte Kombination.
    Beide Werte werden in Prozent angezeigt und eingegeben. Geschwindigkeit
    wird direkt als LTT-Prozentwert übertragen (zulässig: 0,1–100 %).
    Bei fehlendem oder deaktiviertem Profil bleiben die Parameter manuell.
    **Eigenes Material …** erlaubt eine eigene Bezeichnung und Stärke.
-4. Unter **Objektzuordnung → Objekte einzeln zuweisen** jedem SVG-Objekt
-   **Schneiden** (rot), **Gravieren** (blau), **Markieren** (violett) oder **Ignorieren** zuweisen. Die Liste zeigt
+4. Unter **Objektzuordnung** zwischen **Gesamt**, **Einzeln** und **Regeln**
+   wählen. **Einzeln**: jedem SVG-Objekt **Schneiden** (rot), **Gravieren**
+   (blau), **3D-Gravur** (orange), **Markieren** (violett) oder **Ignorieren**
+   zuweisen. **Regeln**: Schritte wählen Objekte nach Farbe, Linien- oder
+   Füllfarbe, Linienstärke, Gruppe/Ebene, Typ oder ID; ein Restschritt nimmt
+   alles Übrige, Ignorierregeln schließen Objekte aus. Vorlagen enthalten die
+   FAU-Zuordnungen („rot schneiden, grün markieren, blau ignorieren, Rest
+   gravieren“). Die Wertliste neben jeder Bedingung zeigt die Werte der SVG.
+   Die Liste zeigt
    Objektnummer, SVG-ID bzw. Bezeichnung und direkt gesetzte Farbe.
    Gruppen bleiben mit ihren Transformationen erhalten; Text, Bilder und
    SVG-Instanzen (`use`) zählen jeweils als ein Objekt.
    Ohne Einzelzuordnung gilt das gewählte Verfahren für das gesamte Motiv.
-5. Leistung, Geschwindigkeit und Durchgänge getrennt je Verfahren einstellen.
-   Vorhandene FAU-Profile lassen sich übernehmen. **Markieren** fährt Konturen
-   mit eigenen Parametern ab; ohne Markierprofil startet die Leistung bei 0 %
-   und muss vor der Vorbereitung eingestellt werden.
-   **Schneiden** bearbeitet Pfadkonturen, **Gravieren** rastert die ausgewählten
-   Objekte in Schwarz/Weiß (500 DPI, Luminanzschwelle 128). Helle Farben können
-   dabei entfallen. Text vor dem Schneiden in Pfade umwandeln.
+5. Leistung, Geschwindigkeit und Durchgänge je Schritt einstellen; **Weiterer
+   Parametersatz** bearbeitet dieselben Objekte anschließend erneut mit anderen
+   Werten. Vorhandene FAU-Profile lassen sich übernehmen. **Markieren** fährt
+   Konturen mit eigenen Parametern ab; ohne Markierprofil startet die Leistung
+   bei 0 % und muss vor der Vorbereitung eingestellt werden.
+   **Schneiden** bearbeitet Pfadkonturen als Tangentialkurven und Kreisbefehle
+   wie der Java-Treiber. **Gravieren** rastert mit 500 DPI und wählbarem
+   Verfahren (Standard „Halbton aufgehellt“ wie im FAU-Profil, außerdem
+   Floyd-Steinberg, Halbton, Geordnet, Mittelwert, Raster, Zufall, Schwellwert),
+   Helligkeit, Invertierung, bidirektional oder einseitig und von oben oder
+   unten. **3D-Gravur** steuert die Leistung je Pixel nach der Helligkeit.
+   Text vor dem Schneiden in Pfade umwandeln.
 6. **Vorschau & Zeit** (⇧⌘P) berechnet den Auftrag im Hintergrund. Die Vorschau
    zeigt tatsächliche Schnittkonturen rot und Gravurflächen blau; ignorierte
    Objekte fehlen. Markierkonturen erscheinen violett. Der **Zeitslider**
@@ -113,8 +128,8 @@ lokal nach einem Build für die jeweilige Host-Architektur.
    Parameter je Schritt sowie die Dateigröße. Änderungen verwerfen die alte
    Vorschau und erfordern eine neue Berechnung.
 7. Im Vorschaudialog **An Lasercutter senden …** wählen oder LTT exportieren.
-   Pro aktivem Verfahren entsteht **ein eigener Auftrag**, maximal drei:
-   **Engrav_… → Mark_… → Cut_…**. Diese Präfixe stehen auch im Gerätenamen
+   Pro aktivem Verfahren entsteht **ein eigener Auftrag**, maximal vier:
+   **Engrav_… → Eng3D_… → Mark_… → Cut_…**. Diese Präfixe stehen auch im Gerätenamen
    (maximal 15 ASCII-Zeichen). Jeder Auftrag erhält eine eigene TCP-Verbindung
    und muss am Gerät separat gestartet werden. Es gibt keinen Autostart.
    Bei einem Fehler wird gestoppt und die App nennt bereits übertragene
@@ -129,7 +144,8 @@ und **Dreieck → Markieren** wählen; Markierparameter passend zum Material set
 Die Dauer ist eine Schätzung aus den erzeugten, quantisierten Fahrwegen,
 Geschwindigkeit und Durchgängen. Bei Gravur zählen Rasterzeilen, Overscan,
 Rückfahrten und 0,1 s Zusatzzeit je Zeile dazu. Nominalwerte sind 338,677 mm/s
-für Schnitt und der Faktor 6,4 für Gravur. Beschleunigung, Geräteeinstellungen,
+für Schnitt und der Faktor 6,4 für Gravur; Beschleunigung (2000 mm/s²) und
+Kurvenplanung folgen dem Java-Treiber. Geräteeinstellungen,
 Übertragung und Bedienzeiten sind nicht vollständig modelliert; die Schätzung
 ist noch nicht am Gerät kalibriert. Die Simulation ist eine Vorschau ohne
 Geräteverbindung und keine Live-Anzeige eines laufenden Lasers.
@@ -185,8 +201,9 @@ Die Auswahl im Inspektor bestimmt Ziel und verfügbare Funktionen.
   (`--port`, `--rotate 90`). Er liegt in `VisiCutRust.app/Contents/MacOS`
   bzw. neben der Windows-/Linux-Programmdatei.
 
-Windows und Linux bieten Geräteauswahl, -verwaltung, Drehachse, Kamerabild
-und Kalibrierung in der egui-Oberfläche.
+Windows und Linux bieten Geräteauswahl, -verwaltung, Drehachse, Kamerabild,
+Kalibrierung, Materialbibliothek, Regel-Zuordnung mit Vorlagen,
+Parametersätze, 3D-Gravur und Rasteroptionen in der egui-Oberfläche.
 Die native Menüleiste bietet Ablage, Bearbeiten, Darstellung und Job.
 Die Oberfläche verwendet Systemschrift, Systemfarben, native Werkzeugleiste,
 Systemdialoge und automatische Hell-/Dunkel-Darstellung.
@@ -215,7 +232,7 @@ und die automatische Ungültigkeit alter Vorschauen. Abschließend öffnet er
 die Auftragsvorschau über die reguläre asynchrone Vorbereitung. Der Test
 bewegt den echten nativen Slider vorwärts/rückwärts und prüft Interpolation,
 Durchgangswechsel, Ende der Wiedergabe sowie drei getrennte Aufträge.
-Außerdem prüft er Geräteliste und Gerätewechsel in einem temporären Einstellungsordner, Drehachsen-Aufträge, Kamerahintergrund aus einer lokalen Bilddatei und die Kalibrierseite. Rust-Tests prüfen drei unabhängige TCP-Verbindungen ausschließlich lokal. Er sendet keinen
+Er prüft außerdem Regel-Zuordnung mit Rest und Ignorierregeln, 3D-Gravur, Rasterverfahren, Parametersätze und die Materialbibliothek (Sichern, doppelte Einträge, Wiederherstellen). Außerdem prüft er Geräteliste und Gerätewechsel in einem temporären Einstellungsordner, Drehachsen-Aufträge, Kamerahintergrund aus einer lokalen Bilddatei und die Kalibrierseite. Rust-Tests prüfen drei unabhängige TCP-Verbindungen ausschließlich lokal. Er sendet keinen
 Job an den Lasercutter. Der normale Start enthält keinen Selbsttest.
 
 Die Materialdaten sind in `resources/materials.json` eingebettet.

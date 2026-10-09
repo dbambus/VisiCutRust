@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Import single-pass LTT cut/engrave profiles from a local FAU checkout.
+"""Import single-pass LTT cut, engrave, mark and 3D engrave profiles from a local FAU checkout.
 
 Usage: python3 scripts/import-fau-materials.py /path/to/visicut-settings
 No downloads or laser communication are performed.
@@ -10,6 +10,10 @@ import re
 import shutil
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
+
+# FAU profile file name and VisiCutRust operation.
+OPERATIONS = (("cut", "Cut"), ("engrave", "Engrave"), ("mark", "Mark"), ("engrave_32_3d", "Engrave3d"))
 
 
 def main():
@@ -28,7 +32,7 @@ def main():
         name = re.sub(r"_(\d+)_", lambda match: chr(int(match.group(1))), name)
         choices = []
         for thickness in sorted(directory.iterdir(), key=lambda path: float(path.name[:-2])):
-            for operation in ("cut", "engrave"):
+            for operation, kind in OPERATIONS:
                 path = thickness / f"{operation}.xml"
                 if not path.exists():
                     continue
@@ -41,7 +45,7 @@ def main():
                     continue
                 choices.append({
                     "thickness_mm": float(thickness.name[:-2]),
-                    "operation": "Cut" if operation == "cut" else "Engrave",
+                    "operation": kind,
                     "power_percent": float(power), "speed_percent": float(speed),
                     "source": str(path.relative_to(settings)),
                 })

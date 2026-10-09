@@ -157,7 +157,7 @@ private struct SimulationDrawing {
             if !program.raster_preview_png.isEmpty {
                 rasterImages[index] = NSImage(data: Data(program.raster_preview_png))
             }
-            guard program.operation != .engrave else { continue }
+            guard !program.operation.isRaster else { continue }
             cuts[index] = stride(from: 0, to: program.motions.count, by: 512).map { start in
                 let end = min(start + 512, program.motions.count)
                 var path = Path()
@@ -276,15 +276,24 @@ private struct SimulationCanvas: NSViewRepresentable {
                 if !full {
                     var revealed = Path()
                     if let mi = frame.motionIndex {
+                        let row = 25.4 / 500
+                        // Rows run top-down or bottom-up; lines left-to-right or alternating.
+                        let firstRow = program.motions.first { $0.kind == .raster }?.from_mm[1] ?? bounds.minY
+                        func finishedRows(through y: Double, including: Bool) -> CGRect {
+                            let edge = including ? row : 0
+                            return firstRow <= y
+                                ? CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width, height: max(0, y + edge - bounds.minY))
+                                : CGRect(x: bounds.minX, y: y + row - edge, width: bounds.width, height: max(0, bounds.maxY - y - row + edge))
+                        }
                         let motion = program.motions[mi]
                         if motion.kind == .raster {
-                            revealed.addRect(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
-                                height: max(0, motion.from_mm[1] - bounds.minY)))
-                            revealed.addRect(CGRect(x: bounds.minX, y: motion.from_mm[1],
-                                width: max(0, min(bounds.width, frame.position.x - bounds.minX)), height: 25.4 / 500))
+                            revealed.addRect(finishedRows(through: motion.from_mm[1], including: false))
+                            let x = min(max(frame.position.x, bounds.minX), bounds.maxX)
+                            revealed.addRect(motion.to_mm[0] >= motion.from_mm[0]
+                                ? CGRect(x: bounds.minX, y: motion.from_mm[1], width: x - bounds.minX, height: row)
+                                : CGRect(x: x, y: motion.from_mm[1], width: bounds.maxX - x, height: row))
                         } else if let previous = program.motions[..<mi].last(where: { $0.kind == .raster }) {
-                            revealed.addRect(CGRect(x: bounds.minX, y: bounds.minY, width: bounds.width,
-                                height: max(0, previous.to_mm[1] + 25.4 / 500 - bounds.minY)))
+                            revealed.addRect(finishedRows(through: previous.to_mm[1], including: true))
                         }
                     }
                     // An empty Core Graphics clip path leaves the clip unchanged,

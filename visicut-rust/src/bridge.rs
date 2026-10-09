@@ -4,6 +4,7 @@ use crate::{
     camera,
     device::{self, DeviceStore, LaserDevice},
     ltt,
+    materials::Library,
     project::Project,
     svg,
 };
@@ -61,8 +62,51 @@ fn merge_devices(request: &Value, devices: Vec<LaserDevice>) -> Result<Value, St
 pub(crate) fn execute(request: &Value) -> Result<Value, String> {
     match request["action"].as_str().unwrap_or("") {
         "default" => Ok(json!({"project": Project::default()})),
-        "materials" => serde_json::from_str(include_str!("../resources/materials.json"))
-            .map_err(|e| e.to_string()),
+        "materials" => {
+            let (library, custom, error) = match Library::load(&device::config_dir()) {
+                Ok((library, custom)) => (library, custom, None),
+                Err(e) => (Library::bundled(), false, Some(e)),
+            };
+            Ok(
+                json!({"materials": library.materials, "source": library.source,
+                "device": library.device, "custom": custom, "error": error}),
+            )
+        }
+        "save_materials" => {
+            get::<Library>(request, "library")?.save(&device::config_dir())?;
+            Ok(json!({}))
+        }
+        "reset_materials" => Ok(json!({"library": Library::reset(&device::config_dir())?})),
+        "import_materials" => {
+            let mut library: Library = get(request, "library")?;
+            let bytes = std::fs::read(path(request)?).map_err(|e| e.to_string())?;
+            let imported = library.merge(Library::import(&bytes)?);
+            library.save(&device::config_dir())?;
+            Ok(json!({"library": library, "imported": imported}))
+        }
+        "export_materials" => {
+            get::<Library>(request, "library")?.export(std::path::Path::new(path(request)?))?;
+            Ok(json!({}))
+        }
+        "mapping" => {
+            let project = get_project(request)?;
+            let selections = if project.steps.is_empty() {
+                Vec::new()
+            } else {
+                crate::mapping::resolve(&project)?
+            };
+            let values: Vec<Value> = crate::mapping::values(&project.svg)?
+                .into_iter()
+                .map(|(attribute, values)| json!({"attribute": attribute,
+                    "values": values.into_iter().map(|(value, count)| json!({"value": value, "count": count})).collect::<Vec<_>>()}))
+                .collect();
+            let predefined: Vec<Value> = crate::mapping::predefined()
+                .into_iter()
+                .map(|p| json!({"name": p.name, "ignore": p.ignore,
+                    "rules": p.rules.into_iter().map(|(operation, filters, rest)| json!({"operation": operation, "filters": filters, "rest": rest})).collect::<Vec<_>>()}))
+                .collect();
+            Ok(json!({"selections": selections, "values": values, "predefined": predefined}))
+        }
         "demo" | "import" => {
             let mut project = get_project(request)?;
             project.svg = if request["action"] == "demo" {
@@ -262,11 +306,8 @@ mod tests {
     fn new_artwork_resets_old_assignments_and_returns_object_list() {
         let mut p = Project::default();
         p.steps.push(crate::project::JobStep {
-            operation: crate::project::Operation::Cut,
             objects: vec![999],
-            power_percent: 20.0,
-            speed_percent: 10.0,
-            passes: 1,
+            ..crate::project::JobStep::new(crate::project::Operation::Cut)
         });
         let result = execute(&json!({"action": "demo", "project": p})).unwrap();
         assert_eq!(result["objects"].as_array().unwrap().len(), 3);

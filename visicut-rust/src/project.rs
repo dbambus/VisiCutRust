@@ -1,3 +1,4 @@
+use crate::{mapping::Filter, raster::RasterSettings};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -28,10 +29,29 @@ pub struct Project {
     pub rotary_axis: bool,
     #[serde(default = "default_rotary_diameter")]
     pub rotary_diameter_mm: f32,
+    /// Raster options when the whole motif is engraved (no steps).
+    #[serde(default = "RasterSettings::legacy")]
+    pub raster: RasterSettings,
+    /// Objects matching any of these filter sets are excluded from rest steps
+    /// (VisiCut mappings to "ignore").
+    #[serde(default)]
+    pub ignore_filters: Vec<Vec<Filter>>,
 }
 
-/// Explicit object selections; an empty list retains the legacy whole-SVG job.
-#[derive(Clone, Serialize, Deserialize)]
+/// Further power/speed settings applied to the same objects afterwards
+/// (several LaserProperty entries of one VisiCut profile).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ParameterSet {
+    pub power_percent: f32,
+    pub speed_percent: f32,
+    pub passes: u32,
+}
+
+/// A processing step. Objects are selected explicitly (`objects`), by
+/// filters (`filters`, an empty list selects everything) or as the rest not
+/// selected by any other step (`rest`). No steps: the whole SVG is one job.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JobStep {
     pub operation: Operation,
@@ -39,6 +59,55 @@ pub struct JobStep {
     pub power_percent: f32,
     pub speed_percent: f32,
     pub passes: u32,
+    #[serde(default)]
+    pub filters: Option<Vec<Filter>>,
+    #[serde(default)]
+    pub rest: bool,
+    #[serde(default = "RasterSettings::legacy")]
+    pub raster: RasterSettings,
+    #[serde(default)]
+    pub additional: Vec<ParameterSet>,
+}
+
+impl JobStep {
+    pub fn new(operation: Operation) -> Self {
+        Self {
+            operation,
+            objects: Vec::new(),
+            power_percent: 20.0,
+            speed_percent: 100.0,
+            passes: 1,
+            filters: None,
+            rest: false,
+            raster: RasterSettings::default(),
+            additional: Vec::new(),
+        }
+    }
+
+    /// All parameter sets in execution order.
+    pub fn parameters(&self) -> Vec<ParameterSet> {
+        std::iter::once(ParameterSet {
+            power_percent: self.power_percent,
+            speed_percent: self.speed_percent,
+            passes: self.passes,
+        })
+        .chain(self.additional.iter().cloned())
+        .collect()
+    }
+}
+
+impl ParameterSet {
+    fn validate(&self) -> Result<(), String> {
+        if !self.power_percent.is_finite()
+            || !(0.0..=100.0).contains(&self.power_percent)
+            || !self.speed_percent.is_finite()
+            || !(0.1..=100.0).contains(&self.speed_percent)
+            || !(1..=100).contains(&self.passes)
+        {
+            return Err("Ungültige Parameter in einem Bearbeitungsschritt".into());
+        }
+        Ok(())
+    }
 }
 
 // V1 stored a derived physical speed. V2 stores the controller percentage;
@@ -72,6 +141,10 @@ struct ProjectFile {
     rotary_axis: bool,
     #[serde(default = "default_rotary_diameter")]
     rotary_diameter_mm: f32,
+    #[serde(default = "RasterSettings::legacy")]
+    raster: RasterSettings,
+    #[serde(default)]
+    ignore_filters: Vec<Vec<Filter>>,
 }
 
 impl TryFrom<ProjectFile> for Project {
@@ -114,6 +187,8 @@ impl TryFrom<ProjectFile> for Project {
             steps: file.steps,
             rotary_axis: file.rotary_axis,
             rotary_diameter_mm: file.rotary_diameter_mm,
+            raster: file.raster,
+            ignore_filters: file.ignore_filters,
         })
     }
 }
@@ -129,27 +204,35 @@ fn default_rotary_diameter() -> f32 {
     100.0
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Operation {
     Cut,
     Engrave,
     Mark,
+    /// Greyscale depth engraving (VisiCut Raster3dProfile).
+    Engrave3d,
 }
 
 impl Operation {
+    pub const ALL: [Operation; 4] = [Self::Engrave, Self::Engrave3d, Self::Mark, Self::Cut];
     pub fn prefix(self) -> &'static str {
         match self {
             Self::Cut => "Cut",
             Self::Engrave => "Engrav",
+            Self::Engrave3d => "Eng3D",
             Self::Mark => "Mark",
         }
     }
     pub fn order(self) -> u8 {
         match self {
             Self::Engrave => 0,
-            Self::Mark => 1,
-            Self::Cut => 2,
+            Self::Engrave3d => 1,
+            Self::Mark => 2,
+            Self::Cut => 3,
         }
+    }
+    pub fn is_raster(self) -> bool {
+        matches!(self, Self::Engrave | Self::Engrave3d)
     }
 }
 
@@ -176,6 +259,8 @@ impl Default for Project {
             steps: Vec::new(),
             rotary_axis: false,
             rotary_diameter_mm: default_rotary_diameter(),
+            raster: RasterSettings::default(),
+            ignore_filters: Vec::new(),
         }
     }
 }
@@ -233,37 +318,40 @@ impl Project {
         if !self.x_mm.is_finite() || !self.y_mm.is_finite() {
             return Err("Position muss endlich sein".into());
         }
-        if self.steps.len() > 3 {
-            return Err(
-                "Höchstens je ein Schritt für Gravieren, Markieren und Schneiden ist zulässig"
-                    .into(),
-            );
+        self.raster.validate()?;
+        if self.steps.len() > 64 {
+            return Err("Höchstens 64 Bearbeitungsschritte sind zulässig".into());
         }
-        let mut assigned = std::collections::HashSet::new();
-        for (i, step) in self.steps.iter().enumerate() {
-            if self.steps[..i]
+        let count = if self.steps.iter().any(|s| s.filters.is_none() && !s.rest) {
+            crate::selection::objects(&self.svg)?.len()
+        } else {
+            0
+        };
+        for step in &self.steps {
+            if step.additional.len() > 15 {
+                return Err("Höchstens 16 Parametersätze je Schritt".into());
+            }
+            for set in step.parameters() {
+                set.validate()?;
+            }
+            step.raster.validate()?;
+            if (step.rest || step.filters.is_some()) && !step.objects.is_empty() {
+                return Err(
+                    "Regelschritte dürfen keine einzeln gewählten Objekte enthalten".into(),
+                );
+            }
+            if step.rest && step.filters.is_some() {
+                return Err("Ein Restschritt hat keine Filter".into());
+            }
+            for filter in step
+                .filters
                 .iter()
-                .any(|s| s.operation == step.operation)
+                .flatten()
+                .chain(self.ignore_filters.iter().flatten())
             {
-                return Err("Bearbeitungsverfahren doppelt vorhanden".into());
+                filter.validate()?;
             }
-            if !step.power_percent.is_finite()
-                || !(0.0..=100.0).contains(&step.power_percent)
-                || !step.speed_percent.is_finite()
-                || !(0.1..=100.0).contains(&step.speed_percent)
-                || !(1..=100).contains(&step.passes)
-            {
-                return Err("Ungültige Parameter in einem Bearbeitungsschritt".into());
-            }
-            for object in &step.objects {
-                if !assigned.insert(*object) {
-                    return Err("Ein SVG-Objekt darf nur einem Verfahren zugeordnet sein".into());
-                }
-            }
-        }
-        if !self.steps.is_empty() {
-            let count = crate::selection::objects(&self.svg)?.len();
-            if assigned.iter().any(|id| *id >= count) {
+            if step.objects.iter().any(|id| *id >= count) {
                 return Err("Zuordnung verweist auf ein nicht vorhandenes SVG-Objekt".into());
             }
         }

@@ -63,6 +63,23 @@ impl Program {
         self.push(kind, to, distance(self.end_mm, to) / speed);
     }
 
+    pub fn started(&self) -> bool {
+        self.initialized
+    }
+
+    /// Travel with a precomputed duration (acceleration-aware estimates).
+    pub fn travel_timed(&mut self, to: [f64; 2], seconds: f64) {
+        if !self.initialized {
+            self.travel(to);
+        } else {
+            self.push(MotionKind::Travel, to, seconds);
+        }
+    }
+
+    pub fn line_timed(&mut self, kind: MotionKind, to: [f64; 2], seconds: f64) {
+        self.push(kind, to, seconds);
+    }
+
     pub fn dwell(&mut self, seconds: f64) {
         self.push(MotionKind::Dwell, self.end_mm, seconds);
     }

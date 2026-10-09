@@ -21,6 +21,13 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/1.0mm/engrave.xml"
         },
         {
+          "thickness_mm": 1.0,
+          "operation": "Mark",
+          "power_percent": 14.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/1.0mm/mark.xml"
+        },
+        {
           "thickness_mm": 1.5,
           "operation": "Cut",
           "power_percent": 100.0,
@@ -33,6 +40,13 @@
           "power_percent": 30.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/1.5mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 1.5,
+          "operation": "Mark",
+          "power_percent": 5.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/1.5mm/mark.xml"
         },
         {
           "thickness_mm": 2.0,
@@ -49,11 +63,25 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/2.0mm/engrave.xml"
         },
         {
+          "thickness_mm": 2.0,
+          "operation": "Mark",
+          "power_percent": 7.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/2.0mm/mark.xml"
+        },
+        {
           "thickness_mm": 2.5,
           "operation": "Cut",
           "power_percent": 100.0,
           "speed_percent": 10.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/2.5mm/cut.xml"
+        },
+        {
+          "thickness_mm": 2.5,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/2.5mm/mark.xml"
         },
         {
           "thickness_mm": 3.0,
@@ -70,6 +98,13 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/3.0mm/engrave.xml"
         },
         {
+          "thickness_mm": 3.0,
+          "operation": "Mark",
+          "power_percent": 14.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/3.0mm/mark.xml"
+        },
+        {
           "thickness_mm": 4.0,
           "operation": "Cut",
           "power_percent": 100.0,
@@ -82,6 +117,13 @@
           "power_percent": 30.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/4.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Mark",
+          "power_percent": 14.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/4.0mm/mark.xml"
         },
         {
           "thickness_mm": 5.0,
@@ -98,6 +140,13 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/5.0mm/engrave.xml"
         },
         {
+          "thickness_mm": 5.0,
+          "operation": "Mark",
+          "power_percent": 14.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/5.0mm/mark.xml"
+        },
+        {
           "thickness_mm": 6.0,
           "operation": "Cut",
           "power_percent": 100.0,
@@ -112,6 +161,13 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/6.0mm/engrave.xml"
         },
         {
+          "thickness_mm": 6.0,
+          "operation": "Mark",
+          "power_percent": 14.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/6.0mm/mark.xml"
+        },
+        {
           "thickness_mm": 8.0,
           "operation": "Cut",
           "power_percent": 100.0,
@@ -124,6 +180,13 @@
           "power_percent": 30.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/8.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 8.0,
+          "operation": "Mark",
+          "power_percent": 14.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Acryl/8.0mm/mark.xml"
         },
         {
           "thickness_mm": 10.0,
@@ -177,6 +240,13 @@
           "power_percent": 6.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/FAU-Card/1.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 1.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/FAU-Card/1.0mm/mark.xml"
         }
       ]
     },
@@ -192,6 +262,13 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/1.0mm/cut.xml"
         },
         {
+          "thickness_mm": 1.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/1.0mm/mark.xml"
+        },
+        {
           "thickness_mm": 1.5,
           "operation": "Cut",
           "power_percent": 100.0,
@@ -199,11 +276,25 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/1.5mm/cut.xml"
         },
         {
+          "thickness_mm": 1.5,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/1.5mm/mark.xml"
+        },
+        {
           "thickness_mm": 2.0,
           "operation": "Cut",
           "power_percent": 100.0,
           "speed_percent": 35.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/2.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 2.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Finnpappe/2.0mm/mark.xml"
         }
       ]
     },
@@ -217,6 +308,13 @@
           "power_percent": 100.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Fotokarton/0.5mm/cut.xml"
+        },
+        {
+          "thickness_mm": 0.5,
+          "operation": "Mark",
+          "power_percent": 7.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Fotokarton/0.5mm/mark.xml"
         }
       ]
     },
@@ -245,11 +343,25 @@
       "name": "HDF",
       "profiles": [
         {
+          "thickness_mm": 1.5,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/1.5mm/mark.xml"
+        },
+        {
           "thickness_mm": 2.0,
           "operation": "Cut",
           "power_percent": 100.0,
           "speed_percent": 15.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/2.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 2.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/2.0mm/mark.xml"
         },
         {
           "thickness_mm": 3.0,
@@ -266,6 +378,13 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/3.0mm/engrave.xml"
         },
         {
+          "thickness_mm": 3.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/3.0mm/mark.xml"
+        },
+        {
           "thickness_mm": 4.0,
           "operation": "Cut",
           "power_percent": 100.0,
@@ -278,6 +397,13 @@
           "power_percent": 20.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/4.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/4.0mm/mark.xml"
         },
         {
           "thickness_mm": 5.0,
@@ -294,11 +420,25 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/5.0mm/engrave.xml"
         },
         {
+          "thickness_mm": 5.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/5.0mm/mark.xml"
+        },
+        {
           "thickness_mm": 6.0,
           "operation": "Cut",
           "power_percent": 100.0,
           "speed_percent": 6.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/6.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 6.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/6.0mm/mark.xml"
         },
         {
           "thickness_mm": 10.0,
@@ -313,6 +453,13 @@
           "power_percent": 100.0,
           "speed_percent": 2.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/10.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 10.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/HDF/10.0mm/mark.xml"
         }
       ]
     },
@@ -353,6 +500,13 @@
           "power_percent": 90.0,
           "speed_percent": 10.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Furnier/1.5mm/cut.xml"
+        },
+        {
+          "thickness_mm": 1.5,
+          "operation": "Mark",
+          "power_percent": 40.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Furnier/1.5mm/mark.xml"
         }
       ]
     },
@@ -420,6 +574,13 @@
           "power_percent": 40.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Pappel/4.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Mark",
+          "power_percent": 15.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Holz_32_Pappel/4.0mm/mark.xml"
         }
       ]
     },
@@ -525,6 +686,13 @@
           "power_percent": 35.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Papier_32_250g/0.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 0.0,
+          "operation": "Mark",
+          "power_percent": 10.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Papier_32_250g/0.0mm/mark.xml"
         }
       ]
     },
@@ -545,6 +713,13 @@
           "power_percent": 10.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Papier_32_80g/0.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 0.0,
+          "operation": "Mark",
+          "power_percent": 0.01,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Papier_32_80g/0.0mm/mark.xml"
         }
       ]
     },
@@ -585,6 +760,13 @@
           "power_percent": 30.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/POM/3.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 3.0,
+          "operation": "Mark",
+          "power_percent": 20.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/POM/3.0mm/mark.xml"
         }
       ]
     },
@@ -618,6 +800,13 @@
           "power_percent": 50.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Birke/4.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Mark",
+          "power_percent": 30.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Birke/4.0mm/mark.xml"
         },
         {
           "thickness_mm": 18.0,
@@ -680,6 +869,20 @@
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/4.0mm/engrave.xml"
         },
         {
+          "thickness_mm": 4.0,
+          "operation": "Mark",
+          "power_percent": 5.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/4.0mm/mark.xml"
+        },
+        {
+          "thickness_mm": 4.0,
+          "operation": "Engrave3d",
+          "power_percent": 40.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/4.0mm/engrave_32_3d.xml"
+        },
+        {
           "thickness_mm": 6.0,
           "operation": "Cut",
           "power_percent": 100.0,
@@ -699,6 +902,13 @@
           "power_percent": 100.0,
           "speed_percent": 6.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/8.0mm/cut.xml"
+        },
+        {
+          "thickness_mm": 8.0,
+          "operation": "Mark",
+          "power_percent": 100.0,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Sperrholz_32_Pappel/8.0mm/mark.xml"
         }
       ]
     },
@@ -739,6 +949,13 @@
           "power_percent": 3.0,
           "speed_percent": 100.0,
           "source": "laserprofiles/LTT_32_iLaser_32_4000/Thermopapier_32_Kassenzettel/0.0mm/engrave.xml"
+        },
+        {
+          "thickness_mm": 0.0,
+          "operation": "Mark",
+          "power_percent": 0.01,
+          "speed_percent": 100.0,
+          "source": "laserprofiles/LTT_32_iLaser_32_4000/Thermopapier_32_Kassenzettel/0.0mm/mark.xml"
         }
       ]
     },

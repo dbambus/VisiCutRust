@@ -42,20 +42,43 @@ Wiederholung nach Fehlern.
 
 ## Bewusste Einschränkungen
 
-- Vektorkurven werden adaptiv in Geraden zerlegt (0,025 mm Toleranz),
-  anschließend auf 500 DPI quantisiert. Tangentialkurven, Kreisbefehle
-  und deren Geschwindigkeitsoptimierung sind noch nicht portiert.
-- SVG-Objekte können einem Schnitt-, Markier- oder Gravurschritt zugeordnet oder ignoriert
-  werden. Jeder Schritt hat eigene Leistung, Geschwindigkeit und Durchgänge.
-  Pro Verfahren wird ein eigenständig gerahmter LTT-Job erzeugt, maximal drei,
-  in der Reihenfolge Engrav → Mark → Cut, mit jeweils eigener TCP-Verbindung.
-  Markieren verwendet Vektorkonturen mit eigenen Parametern. Automatische
-  Farbzuordnungen und mehrere Parametersätze je Verfahren fehlen.
+- Vektorpfade werden adaptiv in Geraden zerlegt (0,025 mm Toleranz) und wie
+  im Java-Treiber (`curveOrLine`) an Ecken geteilt. Flache Abschnitte gehen
+  als verbundene Tangentialkurve (`PJ … PE <Tempo> PR … PF`) mit
+  Geschwindigkeitsplanung bis 2000 mm/s² hinaus (`curve`,
+  `curveWithKnownSpeed`, Neuinterpolation 0,9 mm, zehn Aufwärmrunden).
+  Geschlossene Kreise bis 101 mm Radius nutzen den Kreisbefehl
+  (`PJ PB 0 0 <Mitte> PF`) mit begrenzter Geschwindigkeit und
+  proportional reduzierter Leistung; größere Kreise und Drehachsen-Jobs
+  verwenden normale Kurven. Arc compensation am Gerät wird wie im FAU-Profil
+  als eingeschaltet angenommen. Die Zeitschätzung berücksichtigt Beschleunigung
+  und Bremsen (`cuttingTimeForPxDistance`).
+- Zuordnung wie VisiCuts Mappings: Schritte wählen Objekte einzeln, über
+  Bedingungen (Farbe, Linien-/Füllfarbe, Linienstärke in mm mit „=“ oder „≤“,
+  Gruppe/Inkscape-Ebene, Typ, ID; jeweils auch negiert) oder als Rest.
+  Ignorierregeln nehmen Objekte aus dem Rest. Ein Objekt kann mehrere
+  Schritte durchlaufen. Vorlagen enthalten die beiden FAU-Mappings.
+  Jeder Schritt kann weitere Parametersätze haben, die nacheinander dieselben
+  Objekte bearbeiten. Pro Verfahren entsteht ein eigenständig gerahmter
+  LTT-Job mit allen Schritten dieses Verfahrens, in der Reihenfolge
+  Engrav → Eng3D → Mark → Cut, mit jeweils eigener TCP-Verbindung.
   Text muss vor dem Schneiden in Pfade umgewandelt werden; Rasterbilder,
   Masken, Clipping und Filter werden beim Schneiden abgewiesen.
-- Rastergravur ist Schwarz/Weiß mit Luminanzschwelle 128, 500 DPI,
-  links nach rechts. Overscan und Verschiebung werden berücksichtigt.
-  Graustufengravur und bidirektionale Gravur fehlen.
+- Gravur mit den LibLaserCut-Rasterverfahren Floyd-Steinberg, Mittelwert,
+  Zufall, Geordnet, Raster, Halbton und Halbton aufgehellt (FAU-Standard) sowie
+  dem früheren Schwellwert 128 (ältere Projekte). Graustufen nach
+  BufferedImageAdapter (0,3 R + 0,59 G + 0,11 B), Helligkeitsverschiebung und
+  Invertierung wie im Rasterprofil. Bidirektional (`ESC 1`, Zeile gespiegelt)
+  und von unten nach oben wie `LaosEngraveProperty`. Die Zeilenverschiebung
+  folgt `getEngraveShiftPixels` einschließlich +0,5 Pixel.
+  Abweichungen: Die geordnete Matrix nutzt 255 statt 256, damit reines Weiß
+  nicht gepunktet wird; „Zufall“ ist reproduzierbar statt ungeseedet.
+- 3D-Gravur: eigener Auftrag, Job-Modus 8 Bit je Pixel (`ESC M 0x02`),
+  Leistung je Pixel = Dunkelheit (wie der Java-Treiber nach `invertBits`).
+  Abweichungen: Leere Ränder werden bei Leistung 0 (weiß) statt bei Grauwert 0
+  abgeschnitten, und die Zeilenverschiebung erfolgt in ganzen Pixeln, damit
+  Leistungswerte nicht zwischen Pixeln verschoben werden. Am Gerät nicht
+  validiert.
 - Drehachse wie im Java-Treiber: Job-Modus `ESC M 0x10`, temporärer
   Referenzpunkt Mitte (`ESC a 0x15`), Materialradius in 0,01 mm
   (`ESC R`), Y als Drehwinkel mit 6400 Schritten je Umdrehung, ungespiegelt.

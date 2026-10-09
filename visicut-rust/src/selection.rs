@@ -36,6 +36,10 @@ fn selectable(node: Node<'_, '_>) -> bool {
         })
 }
 
+pub(crate) fn selectable_nodes<'a, 'i>(doc: &'a Document<'i>) -> Vec<Node<'a, 'i>> {
+    doc.descendants().filter(|n| selectable(*n)).collect()
+}
+
 pub fn objects(svg: &str) -> Result<Vec<Object>, String> {
     if svg.is_empty() {
         return Ok(Vec::new());
