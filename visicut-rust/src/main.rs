@@ -4,9 +4,9 @@ mod jobs_ui;
 use eframe::egui::{self, Color32, Pos2, Rect, Sense, Stroke, Vec2};
 use std::path::{Path, PathBuf};
 use visicut_core::{
-    ltt,
+    import, ltt,
     project::{Operation, Project},
-    svg, svg_import,
+    svg,
 };
 
 struct VisiCutRust {
@@ -88,7 +88,7 @@ impl VisiCutRust {
         self.project.height_mm = preview.height_mm;
         self.texture = Some(ctx.load_texture("SVG", preview.image, egui::TextureOptions::LINEAR));
         self.dirty = true;
-        self.status = "SVG importiert · Maße aus der Datei übernommen".into();
+        self.status = "Datei importiert · Maße aus der Datei übernommen".into();
         Ok(())
     }
 
@@ -97,12 +97,8 @@ impl VisiCutRust {
         if meta.len() > 25 * 1024 * 1024 {
             return Err("Datei ist größer als 25 MB".into());
         }
-        if path
-            .extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| e.eq_ignore_ascii_case("svg"))
-        {
-            let imported = svg_import::read_svg_file(path)?;
+        if import::is_importable(path) {
+            let imported = import::read_file(path)?;
             let name = path.file_stem().unwrap_or_default().to_string_lossy();
             self.import(ctx, imported.svg, name.into())?;
             for warning in imported.warnings {
@@ -167,7 +163,12 @@ impl VisiCutRust {
             return;
         }
         if let Some(path) = rfd::FileDialog::new()
-            .add_filter("SVG oder Rust-Projekt", &["svg", "vcr"])
+            .add_filter(
+                "Grafik oder Rust-Projekt",
+                &[import::EXTENSIONS, &["vcr"]].concat(),
+            )
+            .add_filter("Grafik", import::EXTENSIONS)
+            .add_filter("VisiCutRust Projekt", &["vcr"])
             .pick_file()
             && let Err(e) = self.open_path(ctx, &path)
         {

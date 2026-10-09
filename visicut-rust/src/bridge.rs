@@ -114,7 +114,7 @@ pub(crate) fn execute(request: &Value) -> Result<Value, String> {
                 include_str!("../examples/demo.svg").into()
             } else {
                 let path = request["path"].as_str().ok_or("Dateipfad fehlt")?;
-                let imported = crate::svg_import::read_svg_file(std::path::Path::new(path))?;
+                let imported = crate::import::read_file(std::path::Path::new(path))?;
                 warnings = imported.warnings;
                 imported.svg
             };

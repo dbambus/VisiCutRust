@@ -2,6 +2,7 @@ mod bridge;
 pub mod camera;
 pub mod device;
 pub mod geometry;
+pub mod import;
 pub mod ltt;
 pub mod mapping;
 pub mod materials;
