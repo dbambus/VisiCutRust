@@ -113,8 +113,9 @@ lokal nach einem Build für die jeweilige Host-Architektur.
    Konturen mit eigenen Parametern ab; ohne Markierprofil startet die Leistung
    bei 0 % und muss vor der Vorbereitung eingestellt werden.
    **Schneiden** bearbeitet Pfadkonturen als Tangentialkurven und Kreisbefehle
-   wie der Java-Treiber. **Gravieren** rastert mit 500 DPI und wählbarem
-   Verfahren (Standard „Halbton aufgehellt“ wie im FAU-Profil, außerdem
+   wie der Java-Treiber, innere Konturen vor den äußeren. **Gravieren**
+   rastert mit 500 DPI und wählbarem Verfahren (Standard „Halbton
+   aufgehellt“ wie im FAU-Profil, außerdem
    Floyd-Steinberg, Halbton, Geordnet, Mittelwert, Raster, Zufall, Schwellwert),
    Helligkeit, Invertierung, bidirektional oder einseitig und von oben oder
    unten. **3D-Gravur** steuert die Leistung je Pixel nach der Helligkeit.
