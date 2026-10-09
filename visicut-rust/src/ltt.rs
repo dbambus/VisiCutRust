@@ -846,6 +846,9 @@ mod tests {
             while payloads.len() < 3 {
                 match listener.accept() {
                     Ok((mut stream, _)) => {
+                        // On macOS accepted sockets inherit the listener's
+                        // non-blocking mode; the read below must block.
+                        stream.set_nonblocking(false).unwrap();
                         stream
                             .set_read_timeout(Some(Duration::from_secs(3)))
                             .unwrap();
