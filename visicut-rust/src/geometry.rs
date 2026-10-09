@@ -1,13 +1,21 @@
 use crate::project::Project;
 use resvg::{tiny_skia, usvg};
+use std::sync::{Arc, Mutex};
 
 pub type Point = [f32; 2];
 pub type Contour = Vec<Point>;
 
 pub fn contours(project: &Project) -> Result<Vec<Contour>, String> {
+    contours_with_fonts(project, crate::svg::fonts())
+}
+
+fn contours_with_fonts(
+    project: &Project,
+    fonts: Arc<usvg::fontdb::Database>,
+) -> Result<Vec<Contour>, String> {
     let document = usvg::roxmltree::Document::parse(&project.svg).map_err(|e| e.to_string())?;
     for node in document.descendants().filter(|node| node.is_element()) {
-        if matches!(node.tag_name().name(), "text" | "image")
+        if node.tag_name().name() == "image"
             && !node.ancestors().any(|n| {
                 matches!(
                     n.tag_name().name(),
@@ -16,15 +24,29 @@ pub fn contours(project: &Project) -> Result<Vec<Contour>, String> {
             })
         {
             return Err(
-                "SVG enthält Text oder Bilder; zuerst in Pfade umwandeln oder Gravieren wählen"
-                    .into(),
+                "SVG enthält Rasterbilder; zuerst in Pfade umwandeln oder Gravieren wählen".into(),
             );
         }
     }
-    let mut options = usvg::Options::default();
-    options.image_href_resolver.resolve_string = Box::new(|_, _| None);
-    options.fontdb_mut().load_system_fonts();
-    let tree = usvg::Tree::from_str(&project.svg, &options).map_err(|e| e.to_string())?;
+    // Text is cut along its glyph outlines, like the Java importer does. Glyphs
+    // usvg cannot place would otherwise vanish silently, so they are reported.
+    let missing = Mutex::new(Vec::new());
+    let options = usvg::Options {
+        fontdb: fonts,
+        font_resolver: outline_fonts(&missing),
+        ..crate::svg::options()
+    };
+    let mut tree = usvg::Tree::from_str(&project.svg, &options).map_err(|e| e.to_string())?;
+    if let Some(problem) = missing.lock().map_err(|e| e.to_string())?.first() {
+        return Err(problem.clone());
+    }
+    if contains_text(tree.root()) {
+        // usvg keeps glyph outlines relative to their <text> element (the flattened
+        // paths carry an identity transform); writing the tree back out places them
+        // under their ancestors' transforms like ordinary paths.
+        let flattened = tree.to_string(&usvg::WriteOptions::default());
+        tree = usvg::Tree::from_str(&flattened, &options).map_err(|e| e.to_string())?;
+    }
     let mut result = Vec::new();
     visit(tree.root(), project, tree.size(), &mut result)?;
     if result.is_empty() {
@@ -34,6 +56,50 @@ pub fn contours(project: &Project) -> Result<Vec<Contour>, String> {
         return Err("Zu viele Vektorpunkte".into());
     }
     Ok(result)
+}
+
+fn outline_fonts(missing: &Mutex<Vec<String>>) -> usvg::FontResolver<'_> {
+    let select = usvg::FontResolver::default_font_selector();
+    let fallback = usvg::FontResolver::default_fallback_selector();
+    let report = move |problem: String| {
+        if let Ok(mut list) = missing.lock() {
+            list.push(problem);
+        }
+    };
+    usvg::FontResolver {
+        select_font: Box::new(move |font, db| {
+            let id = select(font, db);
+            if id.is_none() {
+                let families: Vec<String> = font.families().iter().map(|f| f.to_string()).collect();
+                report(format!(
+                    "Schriftart für Text nicht gefunden ({}); Schriftart installieren oder Text in Pfade umwandeln",
+                    families.join(", ")
+                ));
+            }
+            id
+        }),
+        select_fallback: Box::new(move |c, used, db| {
+            let id = fallback(c, used, db);
+            let invisible = c.is_whitespace()
+                || c.is_control()
+                || matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{206F}' | '\u{FE00}'..='\u{FE0F}' | '\u{FEFF}');
+            if id.is_none() && !invisible {
+                report(format!(
+                    "Zeichen „{c}“ (U+{:04X}) ist in keiner Schriftart enthalten; Schriftart installieren oder Text in Pfade umwandeln",
+                    c as u32
+                ));
+            }
+            id
+        }),
+    }
+}
+
+fn contains_text(group: &usvg::Group) -> bool {
+    group.children().iter().any(|node| match node {
+        usvg::Node::Text(_) => true,
+        usvg::Node::Group(group) => contains_text(group),
+        _ => false,
+    })
 }
 
 fn visit(
@@ -133,7 +199,10 @@ fn visit(
                     "Schneiden unterstützt keine Rasterbilder; bitte Gravieren wählen".into(),
                 );
             }
-            usvg::Node::Text(_) => return Err("Text vor dem Schneiden in Pfade umwandeln".into()),
+            // `contours` re-imports text as paths before visiting.
+            usvg::Node::Text(_) => {
+                return Err("Text konnte nicht in Pfade umgewandelt werden".into());
+            }
             _ => {}
         }
     }
@@ -468,8 +537,61 @@ mod tests {
     }
 
     #[test]
-    fn does_not_silently_drop_unconverted_text() {
+    fn cuts_text_along_glyph_outlines_in_mm() {
+        let project = Project { svg: r#"<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60"><g transform="translate(20 30) scale(2)"><text x="0" y="0" font-family="sans-serif" font-size="10" fill="none" stroke="red">H</text></g><rect x="90" y="50" width="5" height="5"/></svg>"#.into(), x_mm: 0.0, y_mm: 0.0, width_mm: 100.0, height_mm: 60.0, ..Default::default() };
+        let paths = contours(&project).unwrap();
+        let glyph: Vec<Point> = paths
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|p| p[0] < 80.0)
+            .collect();
+        assert!(!glyph.is_empty());
+        let (min_x, max_x) = glyph
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(a, b), p| (a.min(p[0]), b.max(p[0])));
+        let (min_y, max_y) = glyph
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(a, b), p| (a.min(p[1]), b.max(p[1])));
+        // A 20 mm "H" sits on the baseline at y = 30 mm, starting at x = 20 mm.
+        assert!(min_x >= 20.0 && max_x < 40.0, "x {min_x}..{max_x}");
+        assert!(max_y <= 30.5 && max_y > 29.0, "y max {max_y}");
+        assert!(min_y > 10.0 && min_y < 25.0, "y min {min_y}");
+        assert!(paths.iter().any(|p| p.iter().all(|q| q[0] >= 90.0)));
+    }
+
+    #[test]
+    fn reports_text_without_font() {
         let project = Project { svg: r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="60"><text x="10" y="20">Job</text><rect width="10" height="10"/></svg>"#.into(), ..Default::default() };
-        assert!(contours(&project).is_err());
+        let error =
+            contours_with_fonts(&project, Arc::new(usvg::fontdb::Database::new())).unwrap_err();
+        assert!(error.contains("Schriftart"), "{error}");
+    }
+
+    #[test]
+    fn reports_characters_missing_from_every_font() {
+        let mut fonts = usvg::fontdb::Database::new();
+        fonts.load_font_data(epaint_default_fonts::UBUNTU_LIGHT.to_vec());
+        let project = Project { svg: "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"60\"><text x=\"10\" y=\"20\" font-family=\"Ubuntu\">A \u{10FFFD}</text></svg>".into(), ..Default::default() };
+        let error = contours_with_fonts(&project, Arc::new(fonts)).unwrap_err();
+        assert!(error.contains("U+10FFFD"), "{error}");
+    }
+
+    #[test]
+    fn bundled_fonts_cover_generic_families() {
+        let fonts = crate::svg::fonts();
+        for family in [
+            usvg::fontdb::Family::Serif,
+            usvg::fontdb::Family::SansSerif,
+            usvg::fontdb::Family::Monospace,
+            usvg::fontdb::Family::Cursive,
+            usvg::fontdb::Family::Fantasy,
+        ] {
+            let query = usvg::fontdb::Query {
+                families: &[family],
+                ..Default::default()
+            };
+            assert!(fonts.query(&query).is_some(), "{family:?}");
+        }
     }
 }

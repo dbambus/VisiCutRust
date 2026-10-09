@@ -204,10 +204,7 @@ pub fn attributes(svg: &str) -> Result<Vec<ObjectAttributes>, String> {
                 .map_or(format!("__visicut_object_{i}"), str::to_string)
         })
         .collect();
-    let mut options = usvg::Options::default();
-    options.image_href_resolver.resolve_string = Box::new(|_, _| None);
-    options.fontdb_mut().load_system_fonts();
-    let tree = usvg::Tree::from_str(&tagged, &options).map_err(|e| e.to_string())?;
+    let tree = usvg::Tree::from_str(&tagged, &crate::svg::options()).map_err(|e| e.to_string())?;
     let mut widths: Vec<BTreeSet<String>> = vec![BTreeSet::new(); nodes.len()];
     collect(tree.root(), None, &ids, &mut result, &mut widths);
     for (object, widths) in result.iter_mut().zip(widths) {

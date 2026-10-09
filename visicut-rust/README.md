@@ -118,7 +118,11 @@ lokal nach einem Build für die jeweilige Host-Architektur.
    Floyd-Steinberg, Halbton, Geordnet, Mittelwert, Raster, Zufall, Schwellwert),
    Helligkeit, Invertierung, bidirektional oder einseitig und von oben oder
    unten. **3D-Gravur** steuert die Leistung je Pixel nach der Helligkeit.
-   Text vor dem Schneiden in Pfade umwandeln.
+   Text wird beim Schneiden und Markieren entlang der Glyphenumrisse
+   bearbeitet (wie in Java). Schriften kommen vom System; fehlen sie, greifen
+   die mit egui gelieferten Schriften Ubuntu Light und Hack (auch für
+   Vorschau und Gravur). Zeichen ohne passende Schrift werden gemeldet statt
+   verworfen.
 6. **Vorschau & Zeit** (⇧⌘P) berechnet den Auftrag im Hintergrund. Die Vorschau
    zeigt tatsächliche Schnittkonturen rot und Gravurflächen blau; ignorierte
    Objekte fehlen. Markierkonturen erscheinen violett. Der **Zeitslider**
