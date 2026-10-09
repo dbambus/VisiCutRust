@@ -1257,11 +1257,23 @@ func captureUITest(_ model: AppModel, deadline: Date) {
         guard !model.busy, model.preparedJob != nil, model.showJobPreview else {
             fputs("Native UI tests failed: asynchronous preview not ready\n", stderr); exit(1)
         }
-        let workspace = NSApp.windows.first(where: { $0.isVisible && $0.attachedSheet != nil })
-        guard let view = workspace?.attachedSheet?.contentView else { exit(1) }
-        view.layoutSubtreeIfNeeded()
-        guard let slider = simulationSlider(view), let prepared = model.preparedJob else {
-            fputs("Native UI tests failed: Zeitslider fehlt\n", stderr); exit(1)
+        // SwiftUI presents sheets using different window hierarchies across
+        // macOS versions. Wait for the actual slider to enter a visible view,
+        // rather than assuming that updating the model has presented the sheet.
+        let windows = NSApp.windows.filter { $0.isVisible }
+        let roots = windows.flatMap { window in
+            ([window] + window.sheets + (window.childWindows ?? [])).compactMap { $0.contentView }
+        }
+        for root in roots { root.layoutSubtreeIfNeeded() }
+        guard let view = roots.first(where: { simulationSlider($0) != nil }),
+              let slider = simulationSlider(view), let prepared = model.preparedJob else {
+            if Date() < deadline { captureUITest(model, deadline: deadline); return }
+            fputs("Native UI tests failed: preview slider not presented before deadline (\(windows.count) visible windows)\n", stderr)
+            for window in windows {
+                fputs("Window: \(window.title), sheets: \(window.sheets.count), children: \(window.childWindows?.count ?? 0)\n", stderr)
+            }
+            for root in roots { dumpNativeViews(root) }
+            exit(1)
         }
         let document = model.project
         @MainActor func moveSlider(_ value: Double) {
@@ -1275,12 +1287,19 @@ func captureUITest(_ model: AppModel, deadline: Date) {
         moveSlider(0)
         let markRun = prepared.timeline.runs.first { prepared.timeline.programs[$0.program_index].operation == .mark }!
         moveSlider((markRun.entry_end_seconds + markRun.end_seconds) / 2)
-        guard model.project == document, !model.dirty else { exit(1) }
+        guard model.project == document, !model.dirty else {
+            fputs("Native UI tests failed: moving the slider changed the document\n", stderr); exit(1)
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            guard let image = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { exit(1) }
+            guard let image = view.bitmapImageRepForCachingDisplay(in: view.bounds) else {
+                fputs("Native UI tests failed: could not capture preview view\n", stderr); exit(1)
+            }
             view.cacheDisplay(in: view.bounds, to: image)
             if let index = CommandLine.arguments.firstIndex(of: "--capture"), CommandLine.arguments.count > index + 1 {
-                do { try image.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
+                guard let png = image.representation(using: .png, properties: [:]) else {
+                    fputs("Native UI tests failed: could not encode preview PNG\n", stderr); exit(1)
+                }
+                do { try png.write(to: URL(fileURLWithPath: CommandLine.arguments[index + 1])) }
                 catch { fputs("Capture failed: \(error)\n", stderr); exit(1) }
             }
             print("Native simulation tests passed: slider start/end/backward, interpolation, playback, three operation jobs")

@@ -89,6 +89,7 @@ jobs:
         with:
           workspaces: visicut-rust
           shared-key: ${{ matrix.target }}
+          cache-on-failure: true
 
       - name: Check formatting
         if: runner.os == 'Linux'
@@ -123,7 +124,7 @@ jobs:
       - name: Upload application
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: VisiCutRust-${{ matrix.target }}
+          name: ${{ runner.os == 'macOS' && 'macos-app' || 'VisiCutRust' }}-${{ matrix.target }}
           path: visicut-rust/dist/VisiCutRust-*-${{ matrix.target }}.*
           if-no-files-found: error
           retention-days: 14
@@ -139,10 +140,87 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  macos-universal:
+    name: Assemble Universal macOS application
+    needs: build
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - name: Check out packaging script
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download native macOS bundles
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: macos-app-*
+          path: ${{ runner.temp }}/macos-artifacts
+
+      - name: Combine architectures and sign Universal application
+        working-directory: visicut-rust
+        run: |
+          python3 scripts/package-macos-universal.py \
+            "$RUNNER_TEMP"/macos-artifacts/macos-app-x86_64-apple-darwin/VisiCutRust-*-x86_64-apple-darwin.zip \
+            "$RUNNER_TEMP"/macos-artifacts/macos-app-aarch64-apple-darwin/VisiCutRust-*-aarch64-apple-darwin.zip
+
+      - name: Upload Universal application
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: VisiCutRust-universal-apple-darwin
+          path: visicut-rust/dist/VisiCutRust-*-universal-apple-darwin.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  test-macos-universal:
+    name: Test Universal app on ${{ matrix.arch }}
+    needs: macos-universal
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            arch: x86_64
+          - os: macos-15
+            arch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: Download final Universal archive
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: VisiCutRust-universal-apple-darwin
+          path: universal
+
+      - name: Verify and test the native architecture
+        working-directory: universal
+        env:
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          test "$(uname -m)" = "$EXPECTED_ARCH"
+          ditto -x -k VisiCutRust-*-universal-apple-darwin.zip extracted
+          app="$PWD/extracted/VisiCutRust.app"
+          lipo -verify_arch x86_64 arm64 "$app/Contents/MacOS/visicut-rust"
+          codesign --verify --strict --all-architectures "$app"
+          arch "-$EXPECTED_ARCH" "$app/Contents/MacOS/visicut-rust" \
+            --ui-test --capture "$PWD/universal-preview.png" \
+            2>&1 | tee universal-ui-test.log
+
+      - name: Upload Universal UI test evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: universal-ui-test-${{ matrix.arch }}
+          path: |
+            universal/universal-preview.png
+            universal/universal-ui-test.log
+          if-no-files-found: ignore
+          retention-days: 14
+
   release:
     name: Publish GitHub release
     if: github.repository == 'dbambus/VisiCutRust' && startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, test-macos-universal]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -161,7 +239,7 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           version="${RELEASE_TAG#v}"
-          for target in x86_64-pc-windows-msvc x86_64-apple-darwin aarch64-apple-darwin; do
+          for target in x86_64-pc-windows-msvc universal-apple-darwin; do
             test -s "VisiCutRust-$version-$target.zip"
           done
           test -s "VisiCutRust-$version-x86_64-unknown-linux-gnu.tar.gz"
@@ -181,8 +259,7 @@ jobs:
           | --- | --- |
           | `x86_64-pc-windows-msvc.zip` | Windows x64; extract and run `visicut-rust.exe` |
           | `x86_64-unknown-linux-gnu.tar.gz` | Linux x64, Ubuntu 24.04 or compatible; extract and run `visicut-rust` |
-          | `x86_64-apple-darwin.zip` | macOS 14+ on Intel; extract `VisiCutRust.app` |
-          | `aarch64-apple-darwin.zip` | macOS 14+ on Apple Silicon; extract `VisiCutRust.app` |
+          | `universal-apple-darwin.zip` | macOS 14+ on Intel and Apple Silicon; extract `VisiCutRust.app` |
 
           Development release: macOS includes the native AppKit/SwiftUI interface,
           object assignments and timeline. Windows/Linux have a simpler egui
@@ -192,6 +269,7 @@ jobs:
           See the packaged README and PROTOCOL for hardware validation status.
 
           All four native builds and Rust tests must pass before publication.
+          The final Universal app is also tested on both Intel and Apple Silicon.
           `SHA256SUMS.txt` contains the archive checksums.
           NOTES
           prerelease=false

@@ -9,7 +9,8 @@ Erster Ziel-Lasercutter: LTT iLaser 4000 des FAU FabLabs.
 Die lokal gebaute App befindet sich in `dist/VisiCutRust.app`.
 Version 0.3.0 benötigt macOS 14 oder neuer, weder Java noch Maven.
 Dieser Build verwendet die Architektur
-des Build-Macs; Apple Silicon und Intel müssen separat gebaut werden.
+des Build-Macs. Die GitHub-Releases enthalten eine Universal-App für
+Apple Silicon und Intel in einem einzigen Download.
 
 Für einen Build aus dem Quellcode werden Rust 1.90 und die Xcode Command
 Line Tools benötigt:
@@ -53,8 +54,12 @@ einschließlich Zeitslider. TCP-Tests verwenden ausschließlich localhost.
 Die Downloads und Mac-Testbilder liegen unter **Actions → VisiCutRust releases →
 Artifacts** (14 Tage Aufbewahrung). Tags im Format `v<Version>` veröffentlichen
 nach erfolgreichen Builds auf allen vier Zielen automatisch eine
-[GitHub Release](https://github.com/dbambus/VisiCutRust/releases) mit vier
+[GitHub Release](https://github.com/dbambus/VisiCutRust/releases) mit drei
 Archiven und `SHA256SUMS.txt`. Tag und Cargo-Version müssen übereinstimmen.
+Die beiden Mac-Bundles sind Zwischenartefakte: `lipo` kombiniert ihre ausführbaren
+Dateien, die Universal-App wird erneut signiert und auf Intel sowie Apple
+Silicon getestet. Der öffentliche macOS-Download heißt
+`VisiCutRust-<Version>-universal-apple-darwin.zip` und enthält beide Architekturen.
 Versionen unter 1.0 sowie Versionen mit Suffix werden als Vorabversion markiert.
 Ein manueller Lauf auf einem Branch baut nur Artefakte; auf einem vorhandenen
 Versionstag kann er die Veröffentlichung wiederholen.
@@ -74,6 +79,19 @@ Desktop-Portal-Dienst für Dateidialoge. Der CI-Build setzt Ubuntu 24.04 oder
 eine kompatible glibc-Laufzeit voraus. Die Pakete enthalten Hinweise zum Start
 und zum Funktionsumfang. `scripts/package-ci.py` erstellt dieselben Archive
 lokal nach einem Build für die jeweilige Host-Architektur.
+
+Für eine lokale Universal-App zunächst die Intel- und Apple-Silicon-Archive
+auf den jeweiligen Macs mit `scripts/package-ci.py` erstellen und anschließend
+auf einem Mac zusammenführen:
+
+```sh
+python3 scripts/package-macos-universal.py \
+  /path/to/VisiCutRust-0.3.0-x86_64-apple-darwin.zip \
+  /path/to/VisiCutRust-0.3.0-aarch64-apple-darwin.zip
+```
+
+Das Skript prüft Version, Ressourcen, beide Architekturen und die neue
+Ad-hoc-Signatur. Das fertige ZIP liegt in `dist`.
 
 ## Workflow
 

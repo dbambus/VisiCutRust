@@ -14,8 +14,7 @@ Versions before 1.0 are published as development prereleases.
 | --- | --- | --- |
 | Windows x64 | `VisiCutRust-<version>-x86_64-pc-windows-msvc.zip` | Portable egui application |
 | Linux x64 | `VisiCutRust-<version>-x86_64-unknown-linux-gnu.tar.gz` | Portable egui application; Ubuntu 24.04 or compatible |
-| macOS Intel | `VisiCutRust-<version>-x86_64-apple-darwin.zip` | Native AppKit/SwiftUI; macOS 14+ |
-| macOS Apple Silicon | `VisiCutRust-<version>-aarch64-apple-darwin.zip` | Native AppKit/SwiftUI; macOS 14+ |
+| macOS Universal (Intel + Apple Silicon) | `VisiCutRust-<version>-universal-apple-darwin.zip` | Native AppKit/SwiftUI; macOS 14+ |
 
 No Java is required. The Windows/Linux UI currently has fewer controls than
 macOS. macOS applications are ad hoc signed and not Apple-notarized.
@@ -41,7 +40,9 @@ bash scripts/bundle-macos.sh
 uses GitHub-hosted Windows, Linux, Intel Mac and Apple Silicon Mac runners.
 Pull requests, changes on `master`/`main`, and manual runs build downloadable
 artifacts. Pushing a `v*` tag also publishes a release after all four builds
-and tests pass. The tag must match the version in `visicut-rust/Cargo.toml`.
+and tests pass. The two Mac builds are combined with `lipo` into one Universal
+application, signed again, and tested on both architectures before publishing.
+The tag must match the version in `visicut-rust/Cargo.toml`.
 
 To publish the current version from a clean checkout of `master`:
 
