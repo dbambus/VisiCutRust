@@ -1,14 +1,10 @@
 name: VisiCutRust releases
 
 on:
+  # Every push to master publishes a release; version tags do so as well.
   push:
     branches: [master, main]
     tags: ["v*"]
-    paths:
-      - "visicut-rust/**"
-      - ".github/workflows/rust-desktop.yml"
-      - "COPYING*"
-      - "distribute/mac/MacIcon.icns"
   pull_request:
     paths:
       - "visicut-rust/**"
@@ -140,7 +136,9 @@ jobs:
 
   release:
     name: Publish GitHub release
-    if: github.repository == 'dbambus/VisiCutRust' && startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      github.repository == 'dbambus/VisiCutRust' && github.event_name == 'push' &&
+      (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -154,12 +152,30 @@ jobs:
           merge-multiple: true
           path: release
 
+      - name: Determine release tag
+        id: tag
+        working-directory: release
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          # Archive names carry the Cargo version, e.g. VisiCutRust-0.3.0-….zip.
+          version=$(ls VisiCutRust-*-x86_64-pc-windows-msvc.zip | sed -E 's/^VisiCutRust-(.*)-x86_64-pc-windows-msvc\.zip$/\1/')
+          if [[ "$REF_TYPE" == tag ]]; then
+            tag="$REF_NAME"
+          else
+            # Branch pushes: one release per run, tagged at the built commit.
+            tag="v$version-build.$RUN_NUMBER"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
       - name: Verify packages and create checksums
         working-directory: release
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          version: ${{ steps.tag.outputs.version }}
         run: |
-          version="${RELEASE_TAG#v}"
           for target in x86_64-pc-windows-msvc aarch64-apple-darwin; do
             test -s "VisiCutRust-$version-$target.zip"
           done
@@ -171,7 +187,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_TAG: ${{ steps.tag.outputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          COMMIT: ${{ github.sha }}
         run: |
           cat > RELEASE_NOTES.md <<'NOTES'
           VisiCutRust desktop builds for Windows, Linux and macOS. No Java required.
@@ -196,9 +214,15 @@ jobs:
           if [[ "$RELEASE_TAG" == v0.* || "$RELEASE_TAG" == *-* ]]; then
             prerelease=true
           fi
+          echo "Built from commit $COMMIT." >> RELEASE_NOTES.md
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release create "$RELEASE_TAG" --verify-tag --draft \
-              --title "VisiCutRust $RELEASE_TAG" --notes-file RELEASE_NOTES.md
+            if [[ "$REF_TYPE" == tag ]]; then
+              gh release create "$RELEASE_TAG" --verify-tag --draft \
+                --title "VisiCutRust $RELEASE_TAG" --notes-file RELEASE_NOTES.md
+            else
+              gh release create "$RELEASE_TAG" --target "$COMMIT" --draft \
+                --title "VisiCutRust $RELEASE_TAG" --notes-file RELEASE_NOTES.md
+            fi
           fi
           gh release upload "$RELEASE_TAG" VisiCutRust-* SHA256SUMS.txt --clobber
           gh release edit "$RELEASE_TAG" --draft=false --prerelease="$prerelease" \

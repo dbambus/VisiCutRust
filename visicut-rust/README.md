@@ -50,10 +50,13 @@ allen drei Zielen. Linux prüft zusätzlich Formatierung und Clippy; das
 Mac-Ziel baut und signiert das Bundle und testet die native Oberfläche
 einschließlich Zeitslider. TCP-Tests verwenden ausschließlich localhost.
 Die Downloads und Mac-Testbilder liegen unter **Actions → VisiCutRust releases →
-Artifacts** (14 Tage Aufbewahrung). Tags im Format `v<Version>` veröffentlichen
+Artifacts** (14 Tage Aufbewahrung). Jeder Push auf `master` veröffentlicht
 nach erfolgreichen Builds auf allen drei Zielen automatisch eine
 [GitHub Release](https://github.com/dbambus/VisiCutRust/releases) mit drei
-Archiven und `SHA256SUMS.txt`. Tag und Cargo-Version müssen übereinstimmen.
+Archiven und `SHA256SUMS.txt`, getaggt als `v<Cargo-Version>-build.<Laufnummer>`
+am gebauten Commit. Tags im Format `v<Version>` veröffentlichen ebenfalls;
+dort müssen Tag und Cargo-Version übereinstimmen. Wird während eines Laufs
+erneut gepusht, entfällt das Release des älteren Laufs.
 Der macOS-Download heißt
 `VisiCutRust-<Version>-aarch64-apple-darwin.zip`.
 Versionen unter 1.0 sowie Versionen mit Suffix werden als Vorabversion markiert.
