@@ -98,6 +98,9 @@ lokal nach einem Build für die jeweilige Host-Architektur.
    umgewandelt und dann genauso importiert; die Größe folgt der BoundingBox.
    Ohne Ghostscript erscheint ein Hinweis, die Datei als SVG oder PDF zu
    speichern.
+   DXF-Dateien (ASCII oder binär) werden in Millimetern übernommen
+   (`$INSUNITS`, ohne Angabe Millimeter); DXF-Ebenen und -Farben bleiben als
+   Ebenen und Linienfarben für die Zuordnung erhalten.
 2. Motiv positionieren, skalieren oder auf dem Arbeitsbett zentrieren.
 3. **Material** und **Stärke** aus den nativen Auswahlmenüs wählen.
    Die Bibliothek enthält 31 Materialien und 115 Schnitt-, Gravur-, Markier-
