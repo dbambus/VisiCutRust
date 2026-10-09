@@ -115,6 +115,23 @@ Wiederholung nach Fehlern.
   ab, sondern werden als Hinweis angezeigt und bleiben unverändert verknüpft
   (also unsichtbar). Bereits gespeicherte Projekte werden nicht nachträglich
   aufgelöst.
+- Rasterbilder (PNG, JPEG, BMP, GIF) werden als SVG mit einem eingebetteten
+  `<image>` importiert. Die Größe ergibt sich aus der Auflösung in der Datei
+  (PNG `pHYs`, JPEG JFIF- oder Exif-Dichte, BMP Pixel je Meter); fehlt sie,
+  gilt wie im Java-`JPGPNGImporter` fest 72 DPI (mit Hinweis). BMP wird
+  verlustfrei als PNG eingebettet, JPEGs mit Exif-Drehung oder CMYK werden
+  gedreht bzw. als RGB-JPEG (Qualität 95) neu kodiert, da resvg beides nicht
+  beherrscht. Eingebettet höchstens 20 MB SVG; animierte GIFs zeigen nur das
+  erste Bild.
+- G-Code (`.nc`, `.gcode`) wie im Java-`GCodeImporter`: `G0` bewegt ohne zu
+  zeichnen, `G1` zeichnet Linien, `G2`/`G3` Bögen im/gegen den Uhrzeigersinn,
+  `G20`/`G21` Zoll/mm; Koordinaten sind mm auf dem Arbeitsbett, Y nach unten,
+  ungespiegelt; der Ursprung zählt wie beim Java-Pfad (`moveTo(0, 0)`) zur
+  Ausdehnung, so bleiben absolute Positionen erhalten. `M3`/`M5`, `S`, `F`
+  und `Z` werden ignoriert, die Bahn ist ein roter Pfad (0,1 mm). Abweichend
+  vom Java-Code (dort TODO bzw. fehlerhaft): `G90`/`G91`, Bögen mit `R`,
+  `I`/`J` relativ zum Bogenanfang (`G90.1` absolut wie in Java), `G0`–`G3`
+  auch einstellig, Kleinbuchstaben sowie Kommentare in `( )` und nach `;`.
 - Autofokus, Druckluft und Absaugung: Der Java-Treiber enthält dafür nur
   Platzhalter (`setFocus`, `setPurge`, `setVentilation` senden keine Bytes,
   `isAutoFocus` ist nicht implementiert); das LTT-Protokoll dafür ist nicht

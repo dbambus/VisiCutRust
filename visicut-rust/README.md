@@ -85,6 +85,9 @@ lokal nach einem Build für die jeweilige Host-Architektur.
    Verknüpfte Bilddateien (PNG, JPEG, GIF, WebP, SVG) werden dabei relativ zur
    SVG geladen und in das Projekt eingebettet; Webadressen werden nicht
    abgerufen, fehlende Bilder werden als Hinweis gemeldet.
+   Rasterbilder (PNG, JPEG, BMP, GIF) erhalten ihre Größe aus der
+   Auflösung in der Datei, sonst 72 DPI wie in VisiCut; G-Code (`.nc`,
+   `.gcode`) wird als roter Pfad an seiner Position in mm übernommen.
 2. Motiv positionieren, skalieren oder auf dem Arbeitsbett zentrieren.
 3. **Material** und **Stärke** aus den nativen Auswahlmenüs wählen.
    Die Bibliothek enthält 31 Materialien und 115 Schnitt-, Gravur-, Markier-
