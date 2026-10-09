@@ -123,10 +123,20 @@ Wiederholung nach Fehlern.
   VisiCut-Einstellungen, beim FAU-Gerät „Autofokus machen, Druckluft an“).
 - SVG und `.vcr` werden unterstützt. Version 0.2 ergänzt eine native
   AppKit-/SwiftUI-Oberfläche und eine Auswahl der FAU-LTT-Materialprofile.
-  Bestehende VisiCut-PLF-Dateien, DXF/EPS, allgemeiner Materialbibliothek-
+  Bestehende VisiCut-PLF-Dateien, EPS, allgemeiner Materialbibliothek-
   Import und andere Gerätetreiber fehlen. Nur der LTT iLaser 4000
   (1000 × 600 mm, 4000 DPI) wird unterstützt; andere Geräte werden beim
   Import abgewiesen.
+- DXF (ASCII und binär, R12 bis aktuell) wird mit einem eigenen Parser in eine
+  SVG in Millimetern umgewandelt (`src/import/dxf.rs`). Anders als VisiCuts
+  kabeja-Import wird `$INSUNITS` beachtet; Zeichnungen ohne Einheit gelten wie
+  in Java als Millimeter. Ebenen werden Inkscape-Ebenen, ACI-/True-Color-Farben
+  (BYLAYER/BYBLOCK aufgelöst) Linienfarben, Linientypen Strichmuster.
+  Unterstützt: LINE, LWPOLYLINE/POLYLINE (Bögen), CIRCLE, ARC, ELLIPSE, SPLINE,
+  INSERT/MINSERT (verschachtelt), DIMENSION, LEADER, TEXT/MTEXT/ATTRIB,
+  SOLID/TRACE, 3DFACE und HATCH (als Fläche, Muster werden nicht gezeichnet).
+  Netze, 3D-Körper, Bilder und unendliche Linien werden mit Hinweis
+  ausgelassen; ausgeschaltete/gefrorene Ebenen und der Papierbereich ebenfalls.
 
 Dies ist ein ausführbarer Anfang der Portierung mit durchgehendem
 SVG→Rust→LTT-Workflow, keine vollständige Funktionsparität mit VisiCut.
